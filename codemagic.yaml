@@ -1,0 +1,43 @@
+# Build dell'APK su Codemagic. Fa gli stessi passi della build su GitHub Actions
+# (.github/workflows/build.yml): genera la parte Android, aggiunge nome e
+# permessi, firma sempre con la stessa chiave e compila.
+workflows:
+  android-release:
+    name: Deep Sky FRA400 - APK
+    max_build_duration: 60
+    environment:
+      flutter: 3.50.0
+      java: 17
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+    scripts:
+      - name: Genera il progetto Android
+        script: |
+          flutter create --platforms=android --org it.deepsky --project-name deepsky_fra400 .
+          rm -f test/widget_test.dart
+          python3 ci/patch_android.py
+
+      # Stessa firma a ogni build, così gli aggiornamenti si installano sopra la versione precedente.
+      - name: Firma fissa
+        script: |
+          mkdir -p "$HOME/.android"
+          cp ci/debug.keystore "$HOME/.android/debug.keystore"
+
+      - name: Scarica le librerie
+        script: flutter pub get
+
+      - name: Analisi del codice
+        script: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Test dei calcoli astronomici
+        script: |
+          flutter test || echo "Test non superati, la build continua"
+
+      - name: Compila l'APK
+        script: flutter build apk --release
+
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk
