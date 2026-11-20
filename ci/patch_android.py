@@ -30,3 +30,19 @@ else:
     print('Attenzione: etichetta dell\'app non trovata, resta il nome predefinito')
 path.write_text(text, encoding='utf-8')
 print('AndroidManifest.xml aggiornato')
+
+# permission_handler_android richiede di compilare contro Android SDK 37.
+# Cambia solo l'SDK di compilazione: targetSdk e minSdk restano quelli di Flutter.
+COMPILE_SDK = 37
+gradle = pathlib.Path('android/app/build.gradle.kts')
+if not gradle.exists():
+    gradle = pathlib.Path('android/app/build.gradle')
+g = gradle.read_text(encoding='utf-8')
+for old in ('compileSdk = flutter.compileSdkVersion', 'compileSdkVersion flutter.compileSdkVersion', 'compileSdk flutter.compileSdkVersion'):
+    if old in g:
+        g = g.replace(old, f'compileSdk = {COMPILE_SDK}' if '=' in old else f'compileSdk {COMPILE_SDK}', 1)
+        break
+else:
+    sys.exit(f'{gradle}: riga compileSdk non trovata')
+gradle.write_text(g, encoding='utf-8')
+print(f'{gradle}: compileSdk = {COMPILE_SDK}')

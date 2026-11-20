@@ -1,0 +1,8 @@
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+build/
+pubspec.lock
+# La cartella android/ viene generata dalla build online (vedi codemagic.yaml).
+android/

@@ -11,9 +11,9 @@ enum SiteMode { home, travel }
 
 /// Valori predefiniti della posizione "Casa". Si cambiano dall'app
 /// (Impostazioni) senza toccare il codice.
-const String kDefaultHomeName = 'Roma, via Liala 16';
-const double kDefaultHomeLat = 41.8406;
-const double kDefaultHomeLon = 12.4954;
+const String kDefaultHomeName = 'Roma';
+const double kDefaultHomeLat = 41.9028;
+const double kDefaultHomeLon = 12.4964;
 
 class AppSettings {
   AppSettings();

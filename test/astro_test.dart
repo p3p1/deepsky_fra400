@@ -1,13 +1,13 @@
 // Controllo dei calcoli astronomici contro valori di riferimento ottenuti
-// con astropy per Roma (41,8406° N, 12,4954° E).
+// con astropy per Roma (41,9028° N, 12,4964° E).
 
 import 'dart:math' as math;
 
 import 'package:deepsky_fra400/astro.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const double lat = 41.8406385;
-const double lon = 12.4954294;
+const double lat = 41.9028;
+const double lon = 12.4964;
 
 /// Distanza in gradi tra due direzioni date come altezza e azimut.
 double separation(double alt1, double az1, double alt2, double az2) {
@@ -22,30 +22,30 @@ void main() {
 
   test('oggetti deep sky: altezza e azimut entro 0,05°', () {
     Horizontal h = altAzJ2000(13.1046, 56.565, jd1, lat, lon); // NGC 281
-    expect(separation(h.alt, h.az, 73.8130, 340.1468), lessThan(0.05));
+    expect(separation(h.alt, h.az, 73.8712, 340.0721), lessThan(0.05));
     h = altAzJ2000(83.8221, -5.3911, jd1, lat, lon); // M 42
-    expect(separation(h.alt, h.az, 17.4783, 114.4363), lessThan(0.05));
+    expect(separation(h.alt, h.az, 17.4533, 114.4548), lessThan(0.05));
     h = altAzJ2000(13.1046, 56.565, jd2, lat, lon);
-    expect(separation(h.alt, h.az, 32.5926, 319.4083), lessThan(0.05));
+    expect(separation(h.alt, h.az, 32.6394, 319.3827), lessThan(0.05));
     h = altAzJ2000(83.8221, -5.3911, jd2, lat, lon);
-    expect(separation(h.alt, h.az, 38.6992, 208.5587), lessThan(0.05));
+    expect(separation(h.alt, h.az, 38.6442, 208.5360), lessThan(0.05));
   });
 
   test('Sole entro 0,05°', () {
     SunState s = sunState(jd1);
     Horizontal h = altAzOfDate(s.eq.ra, s.eq.dec, jd1, lat, lon);
-    expect(separation(h.alt, h.az, -56.5360, 304.4811), lessThan(0.05));
+    expect(separation(h.alt, h.az, -56.5013, 304.5598), lessThan(0.05));
     s = sunState(jd2);
     h = altAzOfDate(s.eq.ra, s.eq.dec, jd2, lat, lon);
-    expect(separation(h.alt, h.az, -39.2795, 80.2685), lessThan(0.05));
+    expect(separation(h.alt, h.az, -39.2683, 80.2192), lessThan(0.05));
   });
 
   test('Luna entro 0,5° e fase entro 2 punti percentuali', () {
     Horizontal h = moonAltAz(jd1, lat, lon);
-    expect(separation(h.alt, h.az, 7.023, 239.878), lessThan(0.5));
+    expect(separation(h.alt, h.az, 6.991, 239.871), lessThan(0.5));
     expect(moonState(jd1).illumination, closeTo(0.4404, 0.02));
     h = moonAltAz(jd2, lat, lon);
-    expect(separation(h.alt, h.az, -49.133, 299.107), lessThan(0.5));
+    expect(separation(h.alt, h.az, -49.104, 299.169), lessThan(0.5));
     expect(moonState(jd2).illumination, closeTo(0.4624, 0.02));
   });
 
