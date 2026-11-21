@@ -94,7 +94,7 @@ SELECT ?code ?item ?itemLabel ?ra ?dec ?dist ?unit ?typeLabel ?partLabel ?z ?itw
   OPTIONAL { ?item wdt:P361 ?part . }
   OPTIONAL { ?item wdt:P1090 ?z . }
   OPTIONAL { ?itwiki schema:about ?item ; schema:isPartOf <https://it.wikipedia.org/> . }
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "it,en". }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "it". }
 }'''
 
 
@@ -205,8 +205,9 @@ def main():
         types = sorted(t for t in it['types'] if t not in SKIP_TYPES)
         if types:
             d['ty'] = types[:3]
-        if it['parts']:
-            d['pt'] = sorted(it['parts'])[:4]
+        parts = sorted(p for p in it['parts'] if p not in ('Via Lattea', 'Universo osservabile'))
+        if parts:
+            d['pt'] = parts[:4]
         if it['z'] is not None:
             d['z'] = it['z']
         s = summaries.get(it['itwiki']) if it['itwiki'] else None
