@@ -60,7 +60,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - run: pip install pillow
+      - run: pip install pillow numpy
         if: steps.need.outputs.run == 'true'
 
       - name: Recupera le immagini già scaricate
@@ -98,10 +98,10 @@ jobs:
           {
             echo "Pacchetto offline delle immagini di repertorio per l'app (si scarica da Impostazioni)."
             echo
-            echo "Oggetti con immagine: ${{ steps.pack.outputs.count }}, ancora mancanti: $MISSING."
+            echo "Oggetti con immagine: ${{ steps.pack.outputs.count }} (a colori ${{ steps.pack.outputs.colour }}), ancora mancanti: $MISSING."
             echo
             echo "Fonti: Digitized Sky Survey (STScI/NASA), Pan-STARRS DR1 (STScI/MAST), Milky Way Panorama di Axel Mellinger,"
-            echo "ritagli e colori del CDS di Strasburgo (hips2fits); NASA SkyView come ultima risorsa."
+            echo "ritagli e colori del CDS di Strasburgo (hips2fits); lastre DSS2 IR, rossa e blu da NASA SkyView, ricomposte a colori."
             echo
             echo '```'
             tail -n 45 out/log.txt
@@ -109,10 +109,10 @@ jobs:
             echo
             echo "stato: $STATO ${{ steps.need.outputs.hash }}"
           } > notes.md
-          COUNT="${{ steps.pack.outputs.count }}"
+          COUNT="${{ steps.pack.outputs.count }} (a colori ${{ steps.pack.outputs.colour }})"
           PREV=$(gh release list --limit 50 --json tagName -q '.[].tagName' | grep '^immagini-' | head -1 || true)
           if [ -n "$PREV" ] && [ "${{ github.event_name }}" = "schedule" ]; then
-            PREV_COUNT=$(gh release view "$PREV" --json body -q .body | sed -n 's/^Oggetti con immagine: \([0-9]*\),.*/\1/p')
+            PREV_COUNT=$(gh release view "$PREV" --json body -q .body | sed -n 's/^Oggetti con immagine: \(.*\), ancora.*/\1/p')
             if [ "$PREV_COUNT" = "$COUNT" ]; then echo "Nessuna immagine nuova: non pubblico."; exit 0; fi
           fi
           OLD=$(gh release list --limit 50 --json tagName -q '.[].tagName' | grep '^immagini-' || true)

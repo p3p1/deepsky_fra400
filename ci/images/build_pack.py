@@ -24,6 +24,7 @@ import time
 import urllib.parse
 import urllib.request
 
+import numpy as np
 from PIL import Image, ImageStat
 
 W, H = 480, 360
@@ -93,11 +94,47 @@ def http_get(url, timeout=TIMEOUT):
         return r.status, r.read()
 
 
-def fetch(key, ra, dec, fov):
+SKYVIEW_BANDS = ('DSS2 IR', 'DSS2 Red', 'DSS2 Blue')  # diventano R, G, B
+
+
+def stretch(band):
+    """Porta ogni lastra sulla stessa scala (fondo cielo scuro, stelle non bruciate),
+    così i tre colori si bilanciano senza dominanti."""
+    a = np.asarray(band, dtype=np.float32)
+    lo, hi = np.percentile(a, 1.0), np.percentile(a, 99.7)
+    if hi - lo < 1:
+        return np.zeros_like(a)
+    a = np.clip((a - lo) / (hi - lo), 0, 1)
+    return a ** 0.9
+
+
+def fetch_rgb(ra, dec, fov):
+    """Immagine a colori ricomposta dalle tre lastre DSS2 di NASA SkyView
+    (infrarosso → rosso, rosso → verde, blu → blu)."""
+    chans = []
+    for band in SKYVIEW_BANDS:
+        data = fetch('skyview', ra, dec, fov, survey=band)
+        img = Image.open(io.BytesIO(data)).convert('L')
+        if img.size != (W, H):
+            img = img.resize((W, H), Image.LANCZOS)
+        chans.append(stretch(img))
+    rgb = np.stack(chans, axis=-1)
+    # Bilancia il fondo cielo: la mediana di ogni canale va allo stesso livello.
+    med = np.median(rgb.reshape(-1, 3), axis=0)
+    rgb = np.clip(rgb - med + med.mean(), 0, 1)
+    out = Image.fromarray((rgb * 255 + 0.5).astype(np.uint8), 'RGB')
+    o = io.BytesIO()
+    out.save(o, 'JPEG', quality=95)
+    return o.getvalue()
+
+
+def fetch(key, ra, dec, fov, survey='DSS2 Red'):
+    if key == 'skyview_rgb':
+        return fetch_rgb(ra, dec, fov)
     if key == 'skyview':
-        # NASA SkyView: DSS2 rosso, in bianco e nero; ultima risorsa.
+        # NASA SkyView: una lastra DSS2 in bianco e nero.
         q = urllib.parse.urlencode({
-            'Position': f'{ra:.5f},{dec:.5f}', 'Coordinates': 'J2000', 'Survey': 'DSS2 Red',
+            'Position': f'{ra:.5f},{dec:.5f}', 'Coordinates': 'J2000', 'Survey': survey,
             'Pixels': f'{W},{H}', 'Size': f'{fov:.4f},{fov * H / W:.4f}', 'Return': 'JPEG',
             'Scaling': 'Log',
         })
@@ -130,7 +167,8 @@ def usable(img):
 def make(obj):
     fov = fov_deg(obj.get('D') or 0)
     errors = []
-    for key in source_order(fov, obj['de']) + ['skyview']:
+    # Prima i colori da SkyView (da GitHub risponde bene), poi il CDS, poi il bianco e nero.
+    for key in ['skyview_rgb'] + source_order(fov, obj['de']) + ['skyview']:
         if not HEALTH.ok(key):
             errors.append(f'{key}: in pausa')
             continue
@@ -170,12 +208,14 @@ def main():
 
     meta_path = cache / 'meta.json'
     meta = json.load(open(meta_path)) if meta_path.exists() else {}
-    todo = [o for o in objs if not (o['i'] in meta and (cache / f"{safe(o['i'])}.jpg").exists())]
+    # Da scaricare: quelle che mancano e quelle in bianco e nero (si prova a farle a colori).
+    todo = [o for o in objs if not (o['i'] in meta and meta[o['i']][1] != 'skyview'
+                                    and (cache / f"{safe(o['i'])}.jpg").exists())]
     print(f'{len(objs)} oggetti, {len(objs) - len(todo)} già scaricati, {len(todo)} da scaricare', flush=True)
 
     t0 = time.time()
     # Prova iniziale, così il log dice subito se le fonti rispondono.
-    for key in ('dss2', 'skyview'):
+    for key in ('skyview_rgb', 'dss2'):
         t = time.time()
         try:
             fetch(key, 83.822, -5.391, 1.0)
@@ -195,7 +235,7 @@ def main():
             with lock:
                 done += 1
                 if data is None:
-                    failures[oid] = err
+                    failures[oid] = err  # se c'era una versione in bianco e nero resta quella
                 else:
                     (cache / f'{safe(oid)}.jpg').write_bytes(data)
                     meta[oid] = [round(fov, 4), key]
@@ -241,7 +281,8 @@ def main():
     for oid, err in missing[:40]:
         print('manca', oid, '-', err)
     with open(os.environ.get('GITHUB_OUTPUT', os.devnull), 'a') as gh:
-        gh.write(f'count={len(items)}\nmissing={len(missing)}\n')
+        colour = sum(v for k, v in counts.items() if k != 'skyview')
+        gh.write(f'count={len(items)}\nmissing={len(missing)}\ncolour={colour}\n')
     if not items:
         sys.exit('Nessuna immagine scaricata: le fonti non rispondono.')
 

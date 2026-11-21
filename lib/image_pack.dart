@@ -19,7 +19,7 @@ class PackEntry {
   final int offset;
   final int length;
   final double fovDeg; // campo dell'immagine sul lato lungo, gradi
-  final String source; // dss2, panstarrs, mellinger, skyview
+  final String source; // dss2, panstarrs, mellinger, skyview, skyview_rgb
 }
 
 /// Crediti da mostrare sotto l'immagine, per fonte.
@@ -27,6 +27,8 @@ String packSourceCredit(String source) {
   switch (source) {
     case 'panstarrs':
       return 'Pan-STARRS DR1 (STScI/MAST), ritaglio CDS Strasburgo.';
+    case 'skyview_rgb':
+      return 'Digitized Sky Survey 2 (STScI/NASA), lastre infrarossa, rossa e blu ricomposte a colori, tramite NASA SkyView.';
     case 'skyview':
       return 'Digitized Sky Survey 2, rosso (STScI/NASA), tramite NASA SkyView.';
     case 'mellinger':
