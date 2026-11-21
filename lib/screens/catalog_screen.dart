@@ -3,6 +3,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../app_state.dart';
+import '../lists.dart';
 import '../models.dart';
 import '../settings.dart';
 import '../theme.dart';
@@ -73,7 +74,23 @@ class ObjectRow extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(o.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      Row(
+                        children: <Widget>[
+                          Flexible(
+                            child: Text(o.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                          ),
+                          ListenableBuilder(
+                            listenable: state.lists,
+                            builder: (BuildContext context, Widget? _) => Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                for (final ObjectListKind k in state.lists.listsOf(o.id))
+                                  Padding(padding: const EdgeInsets.only(left: 4), child: Icon(k.icon, size: 14, color: k.color)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                       Text(
                         '${o.info.singular} · ${o.sizeText} · ${o.filterShort} · ${o.cfgShort}',
                         maxLines: 2,

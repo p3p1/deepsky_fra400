@@ -6,6 +6,8 @@ import 'dart:math' as math;
 import 'package:material_ui/material_ui.dart';
 
 import '../app_state.dart';
+import '../details.dart';
+import '../lists.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../widgets/reference_image.dart';
@@ -154,6 +156,7 @@ class _ObjectDetailState extends State<ObjectDetail> {
                       ],
                     ),
                   ),
+                  BookmarkButton(lists: st.lists, objectId: o.id, title: o.title),
                 ],
               ),
               const SizedBox(height: 12),
@@ -217,6 +220,8 @@ class _ObjectDetailState extends State<ObjectDetail> {
       children: <Widget>[
         _section('Immagine di repertorio'),
         ReferenceImage(key: ValueKey<String>('img-${o.id}'), object: o, pack: st.images),
+        _section('L\'oggetto'),
+        _AboutObject(object: o, details: st.details.of(o.id)),
         _section('Inquadratura in scala'),
         Card(
           child: Padding(
@@ -256,10 +261,7 @@ class _ObjectDetailState extends State<ObjectDetail> {
           <String>['Dimensioni', o.major > 0 ? '${o.sizeText} · circa ${fmtThousands(o.pixelsNative)} pixel a 400 mm' : 'non catalogate'],
           <String>['Luminosità', o.brightness ?? 'non catalogata'],
           <String>['Magnitudine', o.mag == null ? 'non catalogata' : '${o.magBand} ${fmt(o.mag!)}'],
-          <String>[
-            'Distanza',
-            o.distance ?? (o.redshift != null ? 'redshift z = ${o.redshift.toString().replaceAll('.', ',')}' : 'non catalogata'),
-          ],
+          if (o.redshift != null) <String>['Redshift', 'z = ${o.redshift.toString().replaceAll('.', ',')}'],
           <String>['Altezza massima', '${st.altMaxOf(o).round()}° da ${st.settings.siteName}'],
           <String>['Altre sigle', o.aliases.isEmpty ? 'nessuna' : o.aliases.join(', ')],
           if (o.names.length > 1) <String>['Altri nomi', o.names.skip(1).join(', ')],
@@ -350,6 +352,138 @@ class _Legend extends StatelessWidget {
         const SizedBox(width: 5),
         Text(text, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
       ],
+    );
+  }
+}
+
+/// Descrizione scientifica: che cos'è, dove si trova, quanto è lontano e grande.
+class _AboutObject extends StatefulWidget {
+  const _AboutObject({required this.object, required this.details});
+
+  final DsObject object;
+  final ObjectDetails? details;
+
+  @override
+  State<_AboutObject> createState() => _AboutObjectState();
+}
+
+class _AboutObjectState extends State<_AboutObject> {
+  bool _wikiOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final DsObject o = widget.object;
+    final ObjectDetails? d = widget.details;
+    final List<double> gal = galactic(o.ra, o.dec);
+
+    // Distanza: Wikidata, poi il catalogo, poi (galassie) il redshift.
+    double? ly = d?.lightYears;
+    String? distText;
+    String? distNote;
+    if (ly != null && ly > 0) {
+      distText = fmtLightYears(ly);
+      final List<double>? r = d!.range;
+      if (r != null) distNote = 'le stime pubblicate vanno da ${fmtLightYears(r[0])} a ${fmtLightYears(r[1])}';
+    } else if (o.distance != null) {
+      distText = o.distance!.replaceAll('a.l.', 'anni luce');
+      // Formati del catalogo: "2.500 a.l.", "23,5 milioni di a.l.".
+      final String digits = (RegExp(r'[0-9.,]+').firstMatch(o.distance!)?.group(0) ?? '').replaceAll('.', '').replaceAll(',', '.');
+      final double? v = double.tryParse(digits);
+      if (v != null && v > 0) ly = o.distance!.contains('milioni') ? v * 1e6 : v;
+    } else {
+      final double? z = d?.redshift ?? o.redshift;
+      if (z != null && z > 0 && z < 0.1) {
+        ly = hubbleDistanceLy(z);
+        distText = 'circa ${fmtLightYears(ly)}';
+        distNote = 'stimata dal redshift z = ${z.toString().replaceAll('.', ',')} con la legge di Hubble';
+      }
+    }
+
+    final List<List<String>> rows = <List<String>>[
+      <String>['Costellazione', o.constellation],
+      if (d != null && d.types.isNotEmpty) <String>['Classificato come', d.types.join(', ')],
+      if (d != null && d.partOf.isNotEmpty) <String>['Fa parte di', d.partOf.join(', ')],
+      if (distText != null) <String>['Distanza', distNote == null ? distText : '$distText ($distNote)'],
+      if (ly != null && ly > 0) <String>['La luce che fotografi', 'è partita circa ${fmtLightYears(ly).replaceAll(' anni luce', ' anni')} fa'],
+      if (ly != null && ly > 0 && o.major > 0)
+        <String>[
+          'Dimensioni reali',
+          o.minor > 0 && o.minor < o.major * 0.9
+              ? 'circa ${fmtLightYears(realSizeLy(ly, o.major))} × ${fmtLightYears(realSizeLy(ly, o.minor))}'
+              : 'circa ${fmtLightYears(realSizeLy(ly, o.major))} di diametro',
+        ],
+      <String>[
+        'Coordinate galattiche',
+        'l ${gal[0].toStringAsFixed(1).replaceAll('.', ',')}°, b ${gal[1] >= 0 ? '+' : '−'}${gal[1].abs().toStringAsFixed(1).replaceAll('.', ',')}° · ${galacticNote(gal[1])}',
+      ],
+    ];
+    final String type = typeExplanation(o.type);
+    final String? morph = morphExplanation(o);
+    final String? wiki = d?.wiki;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            if (type.isNotEmpty) ...<Widget>[
+              Text(o.info.singular, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(type, style: const TextStyle(fontSize: 13.5, height: 1.35)),
+              const SizedBox(height: 10),
+            ],
+            Table(
+              columnWidths: const <int, TableColumnWidth>{0: IntrinsicColumnWidth(), 1: FlexColumnWidth()},
+              children: <TableRow>[
+                for (final List<String> r in rows)
+                  TableRow(children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.only(right: 14, bottom: 5),
+                      child: Text(r[0], style: const TextStyle(color: AppColors.muted, fontSize: 13.5)),
+                    ),
+                    Padding(padding: const EdgeInsets.only(bottom: 5), child: Text(r[1], style: const TextStyle(fontSize: 13.5))),
+                  ]),
+              ],
+            ),
+            if (morph != null) ...<Widget>[
+              const SizedBox(height: 6),
+              Text(morph, style: const TextStyle(fontSize: 13, height: 1.35)),
+            ],
+            if (wiki != null) ...<Widget>[
+              const Divider(height: 22),
+              Text('Da Wikipedia${d!.wikiTitle != null ? ' · ${d.wikiTitle}' : ''}',
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                alignment: Alignment.topCenter,
+                child: Text(
+                  wiki,
+                  maxLines: _wikiOpen ? null : 5,
+                  overflow: _wikiOpen ? TextOverflow.visible : TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13.5, height: 1.4),
+                ),
+              ),
+              if (wiki.length > 300)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                    onPressed: () => setState(() => _wikiOpen = !_wikiOpen),
+                    child: Text(_wikiOpen ? 'Mostra meno' : 'Leggi tutto'),
+                  ),
+                ),
+              const Text('Testo di Wikipedia in italiano, licenza CC BY-SA 4.0.', style: TextStyle(color: AppColors.muted, fontSize: 11)),
+            ],
+            if (d != null && d.lightYears != null)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text('Distanza da Wikidata (valore mediano delle misure pubblicate).', style: TextStyle(color: AppColors.muted, fontSize: 11)),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

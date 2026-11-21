@@ -8,6 +8,8 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:geolocator/geolocator.dart';
 
 import 'comets.dart';
+import 'details.dart';
+import 'lists.dart';
 import 'models.dart';
 import 'scoring.dart';
 import 'image_pack.dart';
@@ -37,6 +39,15 @@ class AppState extends ChangeNotifier {
 
   /// Pacchetto offline delle immagini di repertorio.
   final ImagePack images = ImagePack();
+
+  /// Dettagli scientifici (Wikidata/Wikipedia), dentro l'app.
+  final DetailsStore details = DetailsStore();
+
+  /// Liste personali: preferiti, da fotografare, fotografati.
+  final ObjectLists lists = ObjectLists();
+
+  Map<String, DsObject> _byId = const <String, DsObject>{};
+  DsObject? objectById(String id) => _byId[id];
 
   // ---------------------------------------------------------------- orologio
   // L'ora usata da traiettorie, "Stanotte", comete e vista AR. Di norma è
@@ -80,6 +91,9 @@ class AppState extends ChangeNotifier {
         parsed.add(DsObject.fromJson(i, list[i] as Map<String, dynamic>));
       }
       objects = parsed;
+      _byId = <String, DsObject>{for (final DsObject o in parsed) o.id: o};
+      await details.load();
+      await lists.load();
       _ra = Float64List.fromList(parsed.map((DsObject o) => o.ra).toList());
       _dec = Float64List.fromList(parsed.map((DsObject o) => o.dec).toList());
       ready = true;

@@ -261,11 +261,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _title('Aggiornamenti'),
             UpdatePanel(updater: st.updater),
 
+            _title('Uso senza rete'),
+            const Text(
+              'Senza internet funzionano: catalogo, punteggi, «Stanotte», traiettorie e cupola, vista AR, '
+              'posizione GPS in trasferta, dettagli degli oggetti, liste personali e, una volta scaricate, '
+              'immagini di repertorio e comete (con gli ultimi elementi orbitali salvati). '
+              'La rete serve solo per scaricare immagini, comete aggiornate e nuove versioni dell\'app.',
+              style: TextStyle(color: AppColors.muted, fontSize: 13),
+            ),
+
             _title('Dati e fonti'),
             Text(
               '${fmtThousands(st.objects.length)} oggetti dal catalogo DSO di Stellarium 3.23 e da OpenNGC (licenza CC BY-SA 4.0). '
               'Sole, Luna e traiettorie sono calcolati sul telefono, senza internet. '
-              'Gli elementi orbitali delle comete vengono dal Minor Planet Center e si aggiornano da soli quando c\'è rete.',
+              'Gli elementi orbitali delle comete vengono dal Minor Planet Center e si aggiornano da soli quando c\'è rete. '
+              'Distanze e classificazioni da Wikidata (CC0), descrizioni da Wikipedia in italiano (CC BY-SA 4.0): '
+              '${fmtThousands(st.details.count)} oggetti con dettagli.',
               style: const TextStyle(color: AppColors.muted, fontSize: 13),
             ),
             const SizedBox(height: 6),

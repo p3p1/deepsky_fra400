@@ -8,6 +8,7 @@ import 'models.dart';
 import 'panel/panel.dart' show PanelPage, panelTheme;
 import 'screens/catalog_screen.dart';
 import 'screens/comets_screen.dart';
+import 'screens/lists_screen.dart';
 import 'screens/object_detail.dart';
 import 'screens/settings_screen.dart';
 import 'screens/tonight_screen.dart';
@@ -212,8 +213,8 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
   DateTime? _selectedDay;
   bool _selectedOnTrack = false;
 
-  static const List<String> _labels = <String>['Catalogo', 'Stanotte', 'Comete', 'Impostazioni'];
-  static const List<IconData> _icons = <IconData>[Icons.list_alt, Icons.nights_stay, Icons.wb_twilight, Icons.settings];
+  static const List<String> _labels = <String>['Catalogo', 'Stanotte', 'Liste', 'Comete', 'Impostazioni'];
+  static const List<IconData> _icons = <IconData>[Icons.list_alt, Icons.nights_stay, Icons.bookmarks, Icons.wb_twilight, Icons.settings];
 
   void _open(DsObject o, {DateTime? day, bool track = false}) {
     final bool twoPane = MediaQuery.sizeOf(context).width >= kTwoPaneWidth;
@@ -232,15 +233,17 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
 
   Widget _body(bool twoPane) {
     final AppState st = widget.state;
-    final Widget list = _tab == 0
-        ? CatalogScreen(state: st, selected: twoPane ? _selected : null, onOpen: (DsObject o) => _open(o))
-        : TonightScreen(
-            state: st,
-            selected: twoPane ? _selected : null,
-            onOpen: (DsObject o, DateTime day) => _open(o, day: day, track: true),
-          );
-    if (_tab == 2) return CometsScreen(state: st);
-    if (_tab == 3) return SettingsScreen(state: st);
+    final Widget list = switch (_tab) {
+      0 => CatalogScreen(state: st, selected: twoPane ? _selected : null, onOpen: (DsObject o) => _open(o)),
+      2 => ListsScreen(state: st, selected: twoPane ? _selected : null, onOpen: (DsObject o) => _open(o)),
+      _ => TonightScreen(
+          state: st,
+          selected: twoPane ? _selected : null,
+          onOpen: (DsObject o, DateTime day) => _open(o, day: day, track: true),
+        ),
+    };
+    if (_tab == 3) return CometsScreen(state: st);
+    if (_tab == 4) return SettingsScreen(state: st);
     if (!twoPane) return list;
     final DsObject? sel = _selected;
     return Row(

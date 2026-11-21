@@ -9,6 +9,8 @@ on:
     paths-ignore:
       - 'ci/images/**'
       - '.github/workflows/images.yml'
+      - 'ci/details/**'
+      - '.github/workflows/details.yml'
   workflow_dispatch:
 
 permissions:

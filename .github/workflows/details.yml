@@ -1,0 +1,48 @@
+# Crea assets/details.json (dettagli scientifici degli oggetti da Wikidata e
+# Wikipedia), lo salva nel repository e fa ricompilare l'app.
+name: Dettagli degli oggetti
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ci/details/**'
+      - '.github/workflows/details.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: details
+  cancel-in-progress: true
+
+jobs:
+  details:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Scarica i dettagli
+        run: python3 -u ci/details/build_details.py assets/catalog.json assets/details.json
+
+      - name: Salva nel repository e ricompila l'app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/details.json
+          if git diff --cached --quiet; then echo "Nessuna modifica."; exit 0; fi
+          git commit -m "Dettagli degli oggetti aggiornati da Wikidata e Wikipedia"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          # I push fatti con il token di GitHub Actions non avviano altri workflow:
+          # la compilazione dell'app si avvia esplicitamente.
+          gh workflow run release.yml --ref main
