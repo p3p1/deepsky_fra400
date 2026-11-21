@@ -37,9 +37,21 @@ class AppSettings {
   double travelAltMin = 15;
   bool travelUrban = false;
 
-  // Vista AR.
-  double compassOffset = 4.0; // gradi da sommare alla bussola (declinazione magnetica + taratura)
-  double cameraFov = 62.0; // campo verticale della fotocamera, gradi
+  // Vista AR. La correzione della bussola è separata per telefono chiuso e
+  // aperto: sui pieghevoli i magneti della cerniera spostano la lettura.
+  double compassOffset = 4.0; // gradi da sommare alla bussola, telefono chiuso
+  double compassOffsetOpen = 4.0; // gradi da sommare alla bussola, telefono aperto
+  double cameraFov = 62.0; // campo della fotocamera sul lato lungo dell'immagine, gradi
+
+  double compassOffsetFor({required bool open}) => open ? compassOffsetOpen : compassOffset;
+
+  void setCompassOffset(double v, {required bool open}) {
+    if (open) {
+      compassOffsetOpen = v;
+    } else {
+      compassOffset = v;
+    }
+  }
 
   bool get hasTravelFix => travelLat != null && travelLon != null;
   bool get isHome => mode == SiteMode.home;
@@ -73,6 +85,7 @@ class AppSettings {
         'travelAltMin': travelAltMin,
         'travelUrban': travelUrban,
         'compassOffset': compassOffset,
+        'compassOffsetOpen': compassOffsetOpen,
         'cameraFov': cameraFov,
       };
 
@@ -93,6 +106,8 @@ class AppSettings {
     travelAltMin = d('travelAltMin', travelAltMin);
     travelUrban = j['travelUrban'] is bool ? j['travelUrban'] as bool : travelUrban;
     compassOffset = d('compassOffset', compassOffset);
+    // Chi aggiorna dalla versione precedente parte dalla stessa taratura anche da aperto.
+    compassOffsetOpen = d('compassOffsetOpen', compassOffset);
     cameraFov = d('cameraFov', cameraFov);
   }
 

@@ -71,6 +71,41 @@ class DevicePose {
   }
 }
 
+/// Quale asse dei sensori punta verso l'alto dello schermo: +y, +x, -y o -x.
+///
+/// Android dà accelerometro e bussola negli assi del corpo del telefono, ma
+/// sui pieghevoli lo schermo interno può essere ruotato di 90° rispetto a
+/// quegli assi. Invece di fidarsi della rotazione dichiarata dal sistema, si
+/// guarda la gravità: chi usa la vista AR tiene il telefono con la parte alta
+/// dello schermo rivolta verso il cielo.
+enum ScreenUp { plusY, plusX, minusY, minusX }
+
+/// Proietta un vettore negli assi dei sensori sugli assi dello schermo
+/// (destra, alto, profondità davanti alla fotocamera posteriore).
+List<double> deviceToScreen(List<double> d, ScreenUp up) {
+  switch (up) {
+    case ScreenUp.plusY:
+      return <double>[d[0], d[1], -d[2]];
+    case ScreenUp.plusX:
+      return <double>[-d[1], d[0], -d[2]];
+    case ScreenUp.minusY:
+      return <double>[-d[0], -d[1], -d[2]];
+    case ScreenUp.minusX:
+      return <double>[d[1], -d[0], -d[2]];
+  }
+}
+
+/// Asse dei sensori più allineato con la verticale, se la gravità nel piano
+/// dello schermo è abbastanza forte da deciderlo senza ambiguità.
+ScreenUp? screenUpFromGravity(List<double> acc) {
+  final double x = acc[0], y = acc[1];
+  final double inPlane = math.sqrt(x * x + y * y);
+  if (inPlane < 3.0) return null; // telefono quasi orizzontale: non si decide
+  if (y.abs() >= 0.8 * inPlane) return y > 0 ? ScreenUp.plusY : ScreenUp.minusY;
+  if (x.abs() >= 0.8 * inPlane) return x > 0 ? ScreenUp.plusX : ScreenUp.minusX;
+  return null; // telefono inclinato di traverso: si tiene la scelta precedente
+}
+
 class _ArScreenState extends State<ArScreen> {
   CameraController? _camera;
   String? _cameraNote;
@@ -83,6 +118,9 @@ class _ArScreenState extends State<ArScreen> {
   DateTime _lastPaint = DateTime.fromMillisecondsSinceEpoch(0);
   late List<TrackPoint> _track;
   bool _showTuning = false;
+  ScreenUp _screenUp = ScreenUp.plusY;
+  ScreenUp? _candidateUp;
+  int _candidateCount = 0;
 
   static const double _alpha = 0.12; // filtro passa-basso sui sensori
 
@@ -97,6 +135,7 @@ class _ArScreenState extends State<ArScreen> {
       (AccelerometerEvent e) {
         _blend(_acc, e.x, e.y, e.z, _hasAcc);
         _hasAcc = true;
+        _updateScreenUp();
         _requestPaint();
       },
       onError: (Object _) => _noSensors(),
@@ -122,6 +161,28 @@ class _ArScreenState extends State<ArScreen> {
     v[0] += _alpha * (x - v[0]);
     v[1] += _alpha * (y - v[1]);
     v[2] += _alpha * (z - v[2]);
+  }
+
+  /// Cambia l'asse "alto" solo dopo circa mezzo secondo di letture concordi,
+  /// così un movimento brusco non fa ruotare la scena.
+  void _updateScreenUp() {
+    final ScreenUp? up = screenUpFromGravity(_acc);
+    if (up == null || up == _screenUp) {
+      _candidateUp = null;
+      _candidateCount = 0;
+      return;
+    }
+    if (up == _candidateUp) {
+      _candidateCount++;
+    } else {
+      _candidateUp = up;
+      _candidateCount = 1;
+    }
+    if (_candidateCount >= 25) {
+      _screenUp = up;
+      _candidateUp = null;
+      _candidateCount = 0;
+    }
   }
 
   void _noSensors() {
@@ -174,7 +235,14 @@ class _ArScreenState extends State<ArScreen> {
     final AppSettings s = widget.state.settings;
     final CameraController? cam = _camera;
     final DevicePose? pose = _hasAcc && _hasMag ? DevicePose.fromSensors(_acc, _mag) : null;
-    final DeviceOrientation ui = cam?.value.deviceOrientation ?? DeviceOrientation.portraitUp;
+    final Size screen = MediaQuery.sizeOf(context);
+    // Schermo quasi quadrato = pieghevole aperto; stretto e lungo = chiuso.
+    final bool open = screen.shortestSide / screen.longestSide > 0.7;
+    final double compassOffset = s.compassOffsetFor(open: open);
+    final Size? shown = cam != null && cam.value.isInitialized ? _shownPreview(cam, screen) : null;
+    // Altezza in pixel di tutta l'immagine della fotocamera come appare sullo
+    // schermo (può uscire dai bordi): il campo della fotocamera si riferisce a quella.
+    final double frameHeight = shown?.height ?? screen.height;
     final DateTime now = DateTime.now();
     final double jd = julianDate(now);
     final Equatorial p = widget.target.position(jd);
@@ -191,9 +259,10 @@ class _ArScreenState extends State<ArScreen> {
             CustomPaint(
               painter: _ArPainter(
                 pose: pose,
-                ui: ui,
+                screenUp: _screenUp,
                 fovDeg: s.cameraFov,
-                compassOffset: s.compassOffset,
+                frameHeight: frameHeight,
+                compassOffset: compassOffset,
                 track: _track,
                 window: s.window,
                 target: target,
@@ -229,7 +298,7 @@ class _ArScreenState extends State<ArScreen> {
                             ),
                             if (look != null)
                               Text(
-                                'Stai puntando: ${cardinal(look.az + s.compassOffset)} · azimut ${norm360(look.az + s.compassOffset).round() % 360}° · elevazione ${look.alt.round()}°',
+                                'Stai puntando: ${cardinal(look.az + compassOffset)} · azimut ${norm360(look.az + compassOffset).round() % 360}° · elevazione ${look.alt.round()}°',
                                 style: const TextStyle(color: AppColors.ink, fontSize: 12.5),
                               ),
                           ],
@@ -247,7 +316,7 @@ class _ArScreenState extends State<ArScreen> {
                 if (_sensorNote != null) _banner(_sensorNote!),
                 if (_cameraNote != null) _banner(_cameraNote!),
                 if (pose == null && _sensorNote == null) _banner('In attesa dei sensori… muovi il telefono descrivendo un otto per tarare la bussola.'),
-                if (_showTuning) _tuning(s),
+                if (_showTuning) _tuning(s, open),
               ],
             ),
           ),
@@ -256,13 +325,30 @@ class _ArScreenState extends State<ArScreen> {
     );
   }
 
-  Widget _preview(CameraController cam) {
+  /// Lati dell'immagine della fotocamera nell'orientamento dello schermo.
+  Size? _previewAspect(CameraController cam) {
     final Size? size = cam.value.previewSize;
-    if (size == null) return CameraPreview(cam);
-    // previewSize è riferito al sensore (orizzontale): in verticale si scambiano i lati.
+    if (size == null) return null;
+    // previewSize è riferito al sensore (lato lungo orizzontale): con lo
+    // schermo verticale si scambiano i lati.
     final bool portrait = MediaQuery.orientationOf(context) == Orientation.portrait;
-    final double w = portrait ? size.height : size.width;
-    final double h = portrait ? size.width : size.height;
+    return portrait ? Size(size.height, size.width) : size;
+  }
+
+  /// Dimensioni con cui l'immagine della fotocamera viene disegnata per
+  /// riempire lo schermo (BoxFit.cover): una parte esce dai bordi.
+  Size? _shownPreview(CameraController cam, Size screen) {
+    final Size? a = _previewAspect(cam);
+    if (a == null || a.width <= 0 || a.height <= 0) return null;
+    final double k = math.max(screen.width / a.width, screen.height / a.height);
+    return Size(a.width * k, a.height * k);
+  }
+
+  Widget _preview(CameraController cam) {
+    final Size? a = _previewAspect(cam);
+    if (a == null) return CameraPreview(cam);
+    final double w = a.width;
+    final double h = a.height;
     return ClipRect(
       child: FittedBox(
         fit: BoxFit.cover,
@@ -277,7 +363,8 @@ class _ArScreenState extends State<ArScreen> {
         child: Text(text, style: const TextStyle(color: AppColors.ink, fontSize: 13)),
       );
 
-  Widget _tuning(AppSettings s) {
+  Widget _tuning(AppSettings s, bool open) {
+    final double offset = s.compassOffsetFor(open: open);
     return Container(
       color: Colors.black.withValues(alpha: 0.7),
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
@@ -285,17 +372,17 @@ class _ArScreenState extends State<ArScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Text('Correzione bussola: ${fmt(s.compassOffset)}°', style: const TextStyle(fontSize: 13)),
+          Text('Correzione bussola, telefono ${open ? 'aperto' : 'chiuso'}: ${fmt(offset)}°', style: const TextStyle(fontSize: 13)),
           Slider(
-            value: s.compassOffset.clamp(-30.0, 30.0),
+            value: offset.clamp(-30.0, 30.0),
             min: -30,
             max: 30,
             divisions: 120,
-            label: '${fmt(s.compassOffset)}°',
-            onChanged: (double v) => setState(() => s.compassOffset = v),
+            label: '${fmt(offset)}°',
+            onChanged: (double v) => setState(() => s.setCompassOffset(v, open: open)),
             onChangeEnd: (_) => s.save(),
           ),
-          Text('Campo verticale della fotocamera: ${s.cameraFov.round()}°', style: const TextStyle(fontSize: 13)),
+          Text('Campo della fotocamera (lato lungo): ${s.cameraFov.round()}°', style: const TextStyle(fontSize: 13)),
           Slider(
             value: s.cameraFov.clamp(35.0, 100.0),
             min: 35,
@@ -307,7 +394,8 @@ class _ArScreenState extends State<ArScreen> {
           ),
           const Text(
             'Punta la Luna o una stella brillante che riconosci: regola la bussola finché le direzioni coincidono, '
-            'e il campo finché la distanza tra due riferimenti corrisponde a quella reale.',
+            'e il campo finché la distanza tra due riferimenti corrisponde a quella reale. '
+            'Telefono chiuso e aperto hanno correzioni separate: dopo averlo aperto o chiuso, muovilo descrivendo un otto.',
             style: TextStyle(color: AppColors.muted, fontSize: 12),
           ),
         ],
@@ -319,8 +407,9 @@ class _ArScreenState extends State<ArScreen> {
 class _ArPainter extends CustomPainter {
   _ArPainter({
     required this.pose,
-    required this.ui,
+    required this.screenUp,
     required this.fovDeg,
+    required this.frameHeight,
     required this.compassOffset,
     required this.track,
     required this.window,
@@ -329,8 +418,9 @@ class _ArPainter extends CustomPainter {
   });
 
   final DevicePose pose;
-  final DeviceOrientation ui;
+  final ScreenUp screenUp;
   final double fovDeg;
+  final double frameHeight;
   final double compassOffset;
   final List<TrackPoint> track;
   final SkyWindow window;
@@ -342,17 +432,7 @@ class _ArPainter extends CustomPainter {
 
   /// Componenti (destra, alto, profondità) rispetto allo schermo come è ruotato adesso.
   List<double> _screenVec(double alt, double azTrue) {
-    final List<double> d = pose.toDevice(alt, azTrue - compassOffset);
-    switch (ui) {
-      case DeviceOrientation.landscapeLeft:
-        return <double>[-d[1], d[0], -d[2]];
-      case DeviceOrientation.landscapeRight:
-        return <double>[d[1], -d[0], -d[2]];
-      case DeviceOrientation.portraitDown:
-        return <double>[-d[0], -d[1], -d[2]];
-      case DeviceOrientation.portraitUp:
-        return <double>[d[0], d[1], -d[2]];
-    }
+    return deviceToScreen(pose.toDevice(alt, azTrue - compassOffset), screenUp);
   }
 
   /// Punto sullo schermo, oppure null se la direzione è dietro la fotocamera.
@@ -386,7 +466,9 @@ class _ArPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     _size = size;
-    _focal = (size.height / 2) / math.tan(fovDeg * kDeg / 2);
+    // Il campo della fotocamera copre l'intera immagine, che con lo schermo
+    // quasi quadrato del pieghevole aperto esce in alto e in basso.
+    _focal = (frameHeight / 2) / math.tan(fovDeg * kDeg / 2);
 
     final Paint horizon = Paint()
       ..color = AppColors.ink

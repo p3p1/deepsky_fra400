@@ -220,23 +220,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
             _title('Vista AR'),
-            Text('Correzione bussola: ${fmt(s.compassOffset)}°', style: const TextStyle(fontSize: 13.5)),
-            Slider(
-              value: s.compassOffset.clamp(-30.0, 30.0),
-              min: -30,
-              max: 30,
-              divisions: 120,
-              label: '${fmt(s.compassOffset)}°',
-              onChanged: (double v) => setState(() => s.compassOffset = v),
-              onChangeEnd: (_) => st.changeSettings((AppSettings a) {}, rescore: false),
-            ),
+            for (final bool open in <bool>[false, true]) ...<Widget>[
+              Text(
+                'Correzione bussola, telefono ${open ? 'aperto' : 'chiuso'}: ${fmt(s.compassOffsetFor(open: open))}°',
+                style: const TextStyle(fontSize: 13.5),
+              ),
+              Slider(
+                value: s.compassOffsetFor(open: open).clamp(-30.0, 30.0),
+                min: -30,
+                max: 30,
+                divisions: 120,
+                label: '${fmt(s.compassOffsetFor(open: open))}°',
+                onChanged: (double v) => setState(() => s.setCompassOffset(v, open: open)),
+                onChangeEnd: (_) => st.changeSettings((AppSettings a) {}, rescore: false),
+              ),
+            ],
             const Text(
               'Si somma alla lettura della bussola del telefono. Comprende la declinazione magnetica '
-              '(a Roma circa 4° verso est, valore indicativo) e l\'errore del sensore. Tarala dalla vista AR puntando un astro che riconosci.',
+              '(a Roma circa 4° verso est, valore indicativo) e l\'errore del sensore. Sui pieghevoli i magneti della cerniera '
+              'cambiano la lettura tra telefono chiuso e aperto, per questo le correzioni sono due. Tarale dalla vista AR puntando un astro che riconosci.',
               style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
             const SizedBox(height: 10),
-            Text('Campo verticale della fotocamera: ${s.cameraFov.round()}°', style: const TextStyle(fontSize: 13.5)),
+            Text('Campo della fotocamera (lato lungo): ${s.cameraFov.round()}°', style: const TextStyle(fontSize: 13.5)),
             Slider(
               value: s.cameraFov.clamp(35.0, 100.0),
               min: 35,
