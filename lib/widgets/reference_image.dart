@@ -81,12 +81,36 @@ class _ReferenceImageState extends State<ReferenceImage> {
                                 child: Center(child: Text('Immagine non leggibile.', style: TextStyle(color: AppColors.muted))),
                               );
                             }
-                            return Stack(
-                              fit: StackFit.expand,
-                              children: <Widget>[
-                                Image.memory(b, fit: BoxFit.cover, gaplessPlayback: true, semanticLabel: 'Immagine di repertorio di ${widget.object.title}'),
-                                if (frames) CustomPaint(painter: _FramesOverlay(fovDeg: e.fovDeg)),
-                              ],
+                            return GestureDetector(
+                              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                                fullscreenDialog: true,
+                                builder: (BuildContext _) => _FullScreenImage(
+                                  bytes: b,
+                                  title: widget.object.title,
+                                  fovDeg: e.fovDeg,
+                                  canFrame: canFrame,
+                                  frames: frames,
+                                  credit: packSourceCredit(e.source),
+                                ),
+                              )),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: <Widget>[
+                                  Image.memory(b, fit: BoxFit.cover, gaplessPlayback: true, semanticLabel: 'Immagine di repertorio di ${widget.object.title}'),
+                                  if (frames) CustomPaint(painter: _FramesOverlay(fovDeg: e.fovDeg)),
+                                  const Positioned(
+                                    right: 6,
+                                    bottom: 6,
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(color: Color(0x88000000), shape: BoxShape.circle),
+                                      child: Padding(
+                                        padding: EdgeInsets.all(6),
+                                        child: Icon(Icons.fullscreen, color: Colors.white, size: 22),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             );
                           },
                         ),
@@ -104,6 +128,7 @@ class _ReferenceImageState extends State<ReferenceImage> {
                     onChanged: (bool v) => setState(() => _frames = v),
                   ),
                 Text(
+                  'Tocca l\'immagine per vederla a tutto schermo. '
                   'Campo di ${e.fovDeg >= 1 ? '${fmt(e.fovDeg, 1)}°' : '${(e.fovDeg * 60).round()}′'} centrato sull\'oggetto. Nord in alto, est a sinistra.',
                   style: const TextStyle(color: AppColors.muted, fontSize: 12),
                 ),
@@ -147,6 +172,108 @@ class _ReferenceImageState extends State<ReferenceImage> {
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(p.message!, style: TextStyle(color: p.status == PackStatus.error ? AppColors.q2 : AppColors.muted, fontSize: 12.5)),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Immagine a tutto schermo: si ingrandisce con due dita (o doppio tocco)
+/// e si sposta trascinando.
+class _FullScreenImage extends StatefulWidget {
+  const _FullScreenImage({
+    required this.bytes,
+    required this.title,
+    required this.fovDeg,
+    required this.canFrame,
+    required this.frames,
+    required this.credit,
+  });
+
+  final Uint8List bytes;
+  final String title;
+  final double fovDeg;
+  final bool canFrame;
+  final bool frames;
+  final String credit;
+
+  @override
+  State<_FullScreenImage> createState() => _FullScreenImageState();
+}
+
+class _FullScreenImageState extends State<_FullScreenImage> {
+  final TransformationController _ctrl = TransformationController();
+  late bool _frames = widget.frames;
+  TapDownDetails? _tap;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _doubleTap() {
+    if (_ctrl.value.getMaxScaleOnAxis() > 1.01) {
+      _ctrl.value = Matrix4.identity();
+      return;
+    }
+    final Offset p = _tap?.localPosition ?? Offset.zero;
+    const double z = 3;
+    _ctrl.value = Matrix4.diagonal3Values(z, z, 1)..setTranslationRaw(-p.dx * (z - 1), -p.dy * (z - 1), 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(widget.title),
+        actions: <Widget>[
+          if (widget.canFrame)
+            IconButton(
+              tooltip: _frames ? 'Nascondi il campo del FRA400' : 'Mostra il campo del FRA400',
+              icon: Icon(_frames ? Icons.crop_free : Icons.crop),
+              onPressed: () => setState(() => _frames = !_frames),
+            ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: <Widget>[
+            Expanded(
+              child: GestureDetector(
+                onDoubleTapDown: (TapDownDetails d) => _tap = d,
+                onDoubleTap: _doubleTap,
+                child: InteractiveViewer(
+                  transformationController: _ctrl,
+                  minScale: 1,
+                  maxScale: 6,
+                  child: Center(
+                    child: AspectRatio(
+                      aspectRatio: 4 / 3,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: <Widget>[
+                          Image.memory(widget.bytes, fit: BoxFit.contain, filterQuality: FilterQuality.medium),
+                          if (_frames) CustomPaint(painter: _FramesOverlay(fovDeg: widget.fovDeg)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+              child: Text(
+                'Campo di ${widget.fovDeg >= 1 ? '${fmt(widget.fovDeg, 1)}°' : '${(widget.fovDeg * 60).round()}′'}. '
+                'Nord in alto, est a sinistra. Due dita o doppio tocco per ingrandire. ${widget.credit}',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ),
           ],
         ),
       ),
