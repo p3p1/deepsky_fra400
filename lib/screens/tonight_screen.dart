@@ -9,6 +9,7 @@ import '../astro.dart';
 import '../models.dart';
 import '../scoring.dart';
 import '../theme.dart';
+import '../widgets/clock_chip.dart';
 import 'catalog_screen.dart';
 import 'trajectory_view.dart';
 
@@ -36,7 +37,8 @@ class TonightScreen extends StatefulWidget {
 }
 
 class _TonightScreenState extends State<TonightScreen> {
-  DateTime _day = tonightDate();
+  late DateTime _day = tonightDate(widget.state.now());
+  late int _clockSeen = widget.state.clockVersion;
   double _minScore = 6;
   String? _key;
   bool _busy = false;
@@ -95,6 +97,11 @@ class _TonightScreenState extends State<TonightScreen> {
       listenable: widget.state,
       builder: (BuildContext context, Widget? _) {
         final AppState st = widget.state;
+        if (st.clockVersion != _clockSeen) {
+          // Ora simulata impostata o tolta: si passa alla notte di quel momento.
+          _clockSeen = st.clockVersion;
+          _day = tonightDate(st.now());
+        }
         WidgetsBinding.instance.addPostFrameCallback((_) => _ensure());
         final bool stale = _key != _keyNow();
         final List<_Entry> list = stale ? <_Entry>[] : _entries();
@@ -132,6 +139,7 @@ class _TonightScreenState extends State<TonightScreen> {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: <Widget>[
                       SiteSwitch(state: st),
+                      ClockChip(state: st, compact: true),
                       SegmentedButton<double>(
                         segments: const <ButtonSegment<double>>[
                           ButtonSegment<double>(value: 8, label: Text('Da 8')),

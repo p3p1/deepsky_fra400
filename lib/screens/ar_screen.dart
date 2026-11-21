@@ -15,6 +15,8 @@ import '../astro.dart';
 import '../models.dart';
 import '../settings.dart';
 import '../theme.dart';
+import '../widgets/clock_chip.dart';
+import 'trajectory_view.dart' show tonightDate;
 
 class ArScreen extends StatefulWidget {
   const ArScreen({super.key, required this.state, required this.target, required this.day});
@@ -117,6 +119,7 @@ class _ArScreenState extends State<ArScreen> {
   String? _sensorNote;
   DateTime _lastPaint = DateTime.fromMillisecondsSinceEpoch(0);
   late List<TrackPoint> _track;
+  late int _clockSeen = widget.state.clockVersion;
   bool _showTuning = false;
   ScreenUp _screenUp = ScreenUp.plusY;
   ScreenUp? _candidateUp;
@@ -243,7 +246,12 @@ class _ArScreenState extends State<ArScreen> {
     // Altezza in pixel di tutta l'immagine della fotocamera come appare sullo
     // schermo (può uscire dai bordi): il campo della fotocamera si riferisce a quella.
     final double frameHeight = shown?.height ?? screen.height;
-    final DateTime now = DateTime.now();
+    if (widget.state.clockVersion != _clockSeen) {
+      // Ora simulata impostata o tolta: traiettoria della notte di quel momento.
+      _clockSeen = widget.state.clockVersion;
+      _track = computeTrack(positionJ2000: widget.target.position, latDeg: s.lat, lonDeg: s.lon, day: tonightDate(widget.state.now()));
+    }
+    final DateTime now = widget.state.now();
     final double jd = julianDate(now);
     final Equatorial p = widget.target.position(jd);
     final Horizontal target = altAzJ2000(p.ra, p.dec, jd, s.lat, s.lon);
@@ -292,8 +300,8 @@ class _ArScreenState extends State<ArScreen> {
                                 maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                             Text(
                               target.alt > 0
-                                  ? 'Adesso: ${cardinal(target.az)} · azimut ${target.az.round() % 360}° · elevazione ${target.alt.round()}°'
-                                  : 'Adesso è sotto l\'orizzonte (${target.alt.round()}°)',
+                                  ? '${widget.state.simulatingTime ? 'Alle ${fmtTime(now)}' : 'Adesso'}: ${cardinal(target.az)} · azimut ${target.az.round() % 360}° · elevazione ${target.alt.round()}°'
+                                  : '${widget.state.simulatingTime ? 'Alle ${fmtTime(now)}' : 'Adesso'} è sotto l\'orizzonte (${target.alt.round()}°)',
                               style: const TextStyle(color: AppColors.amber, fontSize: 12.5),
                             ),
                             if (look != null)
@@ -301,6 +309,7 @@ class _ArScreenState extends State<ArScreen> {
                                 'Stai puntando: ${cardinal(look.az + compassOffset)} · azimut ${norm360(look.az + compassOffset).round() % 360}° · elevazione ${look.alt.round()}°',
                                 style: const TextStyle(color: AppColors.ink, fontSize: 12.5),
                               ),
+                            ClockChip(state: widget.state, compact: true),
                           ],
                         ),
                       ),

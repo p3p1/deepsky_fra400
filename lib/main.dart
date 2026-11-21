@@ -12,6 +12,7 @@ import 'screens/object_detail.dart';
 import 'screens/settings_screen.dart';
 import 'screens/tonight_screen.dart';
 import 'theme.dart';
+import 'updater.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -71,11 +72,17 @@ class _RootShellState extends State<RootShell> {
 
   @override
   Widget build(BuildContext context) {
-    final Widget sections = IndexedStack(
+    final Widget stack = IndexedStack(
       index: _section,
       children: <Widget>[
         HomeShell(state: widget.state),
         Theme(data: panelTheme(), child: const PanelPage()),
+      ],
+    );
+    final Widget sections = Column(
+      children: <Widget>[
+        _UpdateBanner(updater: widget.state.updater),
+        Expanded(child: stack),
       ],
     );
     final bool wide = MediaQuery.sizeOf(context).width >= kTwoPaneWidth;
@@ -108,6 +115,70 @@ class _RootShellState extends State<RootShell> {
           for (int i = 0; i < _labels.length; i++) NavigationDestination(icon: Icon(_icons[i]), label: _labels[i]),
         ],
       ),
+    );
+  }
+}
+
+/// Avviso in cima all'app quando c'è una versione più recente da installare.
+class _UpdateBanner extends StatelessWidget {
+  const _UpdateBanner({required this.updater});
+
+  final UpdateService updater;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: updater,
+      builder: (BuildContext context, Widget? _) {
+        final UpdateService u = updater;
+        if (!u.updateAvailable || u.bannerDismissed) return const SizedBox.shrink();
+        final bool downloading = u.status == UpdateStatus.downloading || u.status == UpdateStatus.installing;
+        return Material(
+          color: AppColors.chip,
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      const Icon(Icons.system_update, color: AppColors.accent),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          downloading
+                              ? 'Scarico l\'aggiornamento… ${(u.progress * 100).round()}%'
+                              : 'Nuova versione disponibile: ${u.latest!.name}',
+                          style: const TextStyle(fontSize: 13.5),
+                        ),
+                      ),
+                      if (!downloading) ...<Widget>[
+                        TextButton(
+                          onPressed: u.dismissBanner,
+                          child: const Text('Più tardi'),
+                        ),
+                        FilledButton(onPressed: u.downloadAndInstall, child: const Text('Aggiorna')),
+                      ],
+                    ],
+                  ),
+                  if (downloading) ...<Widget>[
+                    const SizedBox(height: 6),
+                    LinearProgressIndicator(value: u.progress > 0 ? u.progress : null),
+                  ],
+                  if (u.message != null && u.status != UpdateStatus.downloading)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(u.message!, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

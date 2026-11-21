@@ -9,6 +9,7 @@ import '../app_state.dart';
 import '../astro.dart';
 import '../models.dart';
 import '../theme.dart';
+import '../widgets/clock_chip.dart';
 import '../widgets/sky_charts.dart';
 import 'ar_screen.dart';
 
@@ -39,10 +40,11 @@ class TrajectoryView extends StatefulWidget {
 }
 
 class _TrajectoryViewState extends State<TrajectoryView> {
-  late DateTime _day = widget.initialDay ?? tonightDate();
+  late DateTime _day = widget.initialDay ?? tonightDate(widget.state.now());
+  late int _clockSeen = widget.state.clockVersion;
   bool _dome = false;
   Timer? _timer;
-  DateTime _now = DateTime.now();
+  late DateTime _now = widget.state.now();
 
   String? _cacheKey;
   List<TrackPoint> _track = const <TrackPoint>[];
@@ -51,7 +53,7 @@ class _TrajectoryViewState extends State<TrajectoryView> {
   void initState() {
     super.initState();
     _timer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
+      if (mounted) setState(() => _now = widget.state.now());
     });
   }
 
@@ -87,6 +89,12 @@ class _TrajectoryViewState extends State<TrajectoryView> {
       listenable: widget.state,
       builder: (BuildContext context, Widget? _) {
         final settings = widget.state.settings;
+        if (widget.state.clockVersion != _clockSeen) {
+          // Ora simulata impostata o tolta: si passa alla notte di quel momento.
+          _clockSeen = widget.state.clockVersion;
+          _now = widget.state.now();
+          _day = tonightDate(_now);
+        }
         final double lat = settings.lat, lon = settings.lon;
         final SkyWindow window = settings.window;
         final List<TrackPoint> track = _trackFor(lat, lon);
@@ -135,7 +143,8 @@ class _TrajectoryViewState extends State<TrajectoryView> {
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: AppColors.muted, fontSize: 12),
               ),
-              const SizedBox(height: 8),
+              Center(child: ClockChip(state: widget.state)),
+              const SizedBox(height: 4),
               if (wide)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,

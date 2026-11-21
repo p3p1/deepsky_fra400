@@ -1,3 +1,5 @@
+# Build manuale su Codemagic (quella automatica con pubblicazione per
+# l'aggiornamento dall'app è in .github/workflows/release.yml).
 # Build dell'APK su Codemagic. Fa gli stessi passi della build su GitHub Actions
 # (.github/workflows/build.yml): genera la parte Android, aggiunge nome e
 # permessi, firma sempre con la stessa chiave e compila.
@@ -8,11 +10,6 @@ workflows:
     environment:
       flutter: 3.50.0
       java: 21
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: main
     scripts:
       - name: Genera il progetto Android
         script: |
@@ -36,8 +33,12 @@ workflows:
         script: |
           flutter test || echo "Test non superati, la build continua"
 
+      # Stessa numerazione della build su GitHub: 100 + numero di commit.
       - name: Compila l'APK
-        script: flutter build apk --release
+        script: |
+          git fetch --unshallow 2>/dev/null || true
+          COUNT=$(git rev-list --count HEAD)
+          flutter build apk --release --build-number=$((100 + COUNT)) --build-name=1.2.$COUNT
 
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk

@@ -8,6 +8,7 @@ import '../astro.dart';
 import '../comets.dart';
 import '../models.dart';
 import '../theme.dart';
+import '../widgets/clock_chip.dart';
 import 'trajectory_view.dart';
 
 class _CometNow {
@@ -22,7 +23,7 @@ class CometsScreen extends StatelessWidget {
   final AppState state;
 
   List<_CometNow> _visible() {
-    final double jd = julianDate(DateTime.now());
+    final double jd = julianDate(state.now());
     final List<_CometNow> out = <_CometNow>[];
     for (final Comet c in state.comets) {
       // Solo comete entro circa 4 anni dal perielio: le altre sono lontane e deboli.
@@ -54,6 +55,8 @@ class CometsScreen extends StatelessWidget {
                   : 'Elementi orbitali del Minor Planet Center, aggiornati il ${fmtDate(upd)}. Funzionano anche senza internet.',
               style: const TextStyle(color: AppColors.muted, fontSize: 13),
             ),
+            const SizedBox(height: 6),
+            Align(alignment: Alignment.centerLeft, child: ClockChip(state: state, compact: true)),
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerLeft,

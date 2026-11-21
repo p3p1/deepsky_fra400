@@ -8,6 +8,7 @@ text = path.read_text(encoding='utf-8')
 
 permissions = '''    <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation"/>
@@ -44,5 +45,35 @@ for old in ('compileSdk = flutter.compileSdkVersion', 'compileSdkVersion flutter
         break
 else:
     sys.exit(f'{gradle}: riga compileSdk non trovata')
+
+# Firma sempre con ci/debug.keystore, qualunque sia la macchina di build:
+# Android installa un aggiornamento solo se la firma è la stessa.
+if gradle.suffix == '.kts':
+    signing = '''    signingConfigs {
+        create("fixed") {
+            storeFile = rootProject.file("../ci/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
+    buildTypes {'''
+    use_old, use_new = 'signingConfig = signingConfigs.getByName("debug")', 'signingConfig = signingConfigs.getByName("fixed")'
+else:
+    signing = '''    signingConfigs {
+        fixed {
+            storeFile rootProject.file("../ci/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
+
+    buildTypes {'''
+    use_old, use_new = 'signingConfig signingConfigs.debug', 'signingConfig signingConfigs.fixed'
+if use_old not in g or '    buildTypes {' not in g:
+    sys.exit(f'{gradle}: configurazione di firma non trovata')
+g = g.replace('    buildTypes {', signing, 1).replace(use_old, use_new, 1)
 gradle.write_text(g, encoding='utf-8')
-print(f'{gradle}: compileSdk = {COMPILE_SDK}')
+print(f'{gradle}: compileSdk = {COMPILE_SDK}, firma fissa con ci/debug.keystore')

@@ -8,6 +8,7 @@ import '../astro.dart';
 import '../models.dart';
 import '../settings.dart';
 import '../theme.dart';
+import '../updater.dart';
 import 'catalog_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -253,6 +254,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChangeEnd: (_) => st.changeSettings((AppSettings a) {}, rescore: false),
             ),
 
+            _title('Aggiornamenti'),
+            UpdatePanel(updater: st.updater),
+
             _title('Dati e fonti'),
             Text(
               '${fmtThousands(st.objects.length)} oggetti dal catalogo DSO di Stellarium 3.23 e da OpenNGC (licenza CC BY-SA 4.0). '
@@ -264,6 +268,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Text(
               'Strumento: Askar FRA400 con ASI2600MC Pro. Campo 3,36° × 2,25° a 400 mm; 4,80° × 3,21° con il riduttore 0,7×.',
               style: TextStyle(color: AppColors.muted, fontSize: 13),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Versione installata, controllo e installazione degli aggiornamenti.
+class UpdatePanel extends StatelessWidget {
+  const UpdatePanel({super.key, required this.updater});
+
+  final UpdateService updater;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: updater,
+      builder: (BuildContext context, Widget? _) {
+        final UpdateService u = updater;
+        final Release? rel = u.latest;
+        final String installed = u.installedBuild > 0 ? 'Versione installata: ${u.installedVersion} (build ${u.installedBuild})' : 'Versione installata: non ancora letta';
+        String state;
+        switch (u.status) {
+          case UpdateStatus.checking:
+            state = 'Controllo in corso…';
+          case UpdateStatus.downloading:
+            state = 'Scarico l\'aggiornamento… ${(u.progress * 100).round()}%';
+          case UpdateStatus.installing:
+            state = 'Apro l\'installazione di Android…';
+          case UpdateStatus.available:
+            state = 'Disponibile: ${rel?.name ?? ''} (build ${rel?.build ?? ''})';
+          case UpdateStatus.upToDate:
+            state = rel == null ? 'Nessuna versione pubblicata.' : 'L\'app è aggiornata.';
+          case UpdateStatus.error:
+          case UpdateStatus.idle:
+            state = '';
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(installed, style: const TextStyle(fontSize: 13.5)),
+            if (state.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(state, style: const TextStyle(color: AppColors.muted, fontSize: 13))),
+            if (u.status == UpdateStatus.downloading)
+              Padding(padding: const EdgeInsets.only(top: 6), child: LinearProgressIndicator(value: u.progress > 0 ? u.progress : null)),
+            if (u.message != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(u.message!, style: TextStyle(color: u.status == UpdateStatus.error ? AppColors.q2 : AppColors.muted, fontSize: 13)),
+              ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                OutlinedButton.icon(
+                  onPressed: u.busy ? null : () => u.check(),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Controlla aggiornamenti'),
+                ),
+                if (u.updateAvailable)
+                  FilledButton.icon(
+                    onPressed: u.busy ? null : u.downloadAndInstall,
+                    icon: const Icon(Icons.system_update),
+                    label: const Text('Scarica e installa'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Le versioni nuove vengono pubblicate sul repository GitHub a ogni modifica e si installano sopra quella '
+              'presente, senza perdere impostazioni e collegamenti. L\'app controlla da sola all\'avvio quando c\'è internet.',
+              style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
           ],
         );

@@ -1,0 +1,72 @@
+# Compila l'APK a ogni modifica sul ramo main e lo pubblica come Release del
+# repository. L'app controlla l'ultima Release e si aggiorna da sola.
+# Su un repository pubblico i minuti di GitHub Actions sono gratuiti e illimitati.
+name: Build e pubblicazione APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # serve tutta la cronologia per numerare le versioni
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+
+      # La parte Android non è nel repository: si genera dal modello di Flutter
+      # e poi si aggiungono nome dell'app, permessi e firma fissa.
+      - name: Genera il progetto Android
+        run: |
+          flutter create --platforms=android --org it.deepsky --project-name deepsky_fra400 .
+          rm -f test/widget_test.dart
+          python3 ci/patch_android.py
+
+      - run: flutter pub get
+
+      - name: Analisi del codice
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Test
+        run: flutter test
+        continue-on-error: true
+
+      # Numero di versione = 100 + numero di commit: cresce a ogni modifica,
+      # così Android accetta l'aggiornamento sopra la versione installata.
+      - name: Compila l'APK
+        run: |
+          COUNT=$(git rev-list --count HEAD)
+          CODE=$((100 + COUNT))
+          echo "CODE=$CODE" >> "$GITHUB_ENV"
+          echo "NAME=1.2.$COUNT" >> "$GITHUB_ENV"
+          flutter build apk --release --build-number=$CODE --build-name=1.2.$COUNT
+          cp build/app/outputs/flutter-apk/app-release.apk "deepsky_fra400-$CODE.apk"
+
+      - name: Pubblica la Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git log -1 --pretty=%B > notes.txt
+          gh release create "build-$CODE" "deepsky_fra400-$CODE.apk" \
+            --title "Versione $NAME" --notes-file notes.txt --latest

@@ -11,6 +11,7 @@ import 'comets.dart';
 import 'models.dart';
 import 'scoring.dart';
 import 'settings.dart';
+import 'updater.dart';
 
 class AppState extends ChangeNotifier {
   AppSettings settings = AppSettings();
@@ -29,6 +30,35 @@ class AppState extends ChangeNotifier {
   Float64List _dec = Float64List(0);
   Float64List get raList => _ra;
   Float64List get decList => _dec;
+
+  /// Aggiornamenti dell'app pubblicati su GitHub.
+  final UpdateService updater = UpdateService();
+
+  // ---------------------------------------------------------------- orologio
+  // L'ora usata da traiettorie, "Stanotte", comete e vista AR. Di norma è
+  // quella reale; si può simulare un'altra data e ora, e l'orologio continua
+  // a scorrere da lì. Non viene salvata: alla riapertura si torna all'ora reale.
+  Duration _clockOffset = Duration.zero;
+
+  bool get simulatingTime => _clockOffset != Duration.zero;
+
+  /// Cambia ogni volta che si imposta o si toglie un'ora simulata.
+  int clockVersion = 0;
+
+  DateTime now() => DateTime.now().add(_clockOffset);
+
+  void simulateTime(DateTime t) {
+    _clockOffset = t.difference(DateTime.now());
+    clockVersion++;
+    notifyListeners();
+  }
+
+  void useRealTime() {
+    if (_clockOffset == Duration.zero) return;
+    _clockOffset = Duration.zero;
+    clockVersion++;
+    notifyListeners();
+  }
 
   List<Comet> comets = const <Comet>[];
   DateTime? cometsUpdated;
@@ -52,6 +82,7 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       await recompute();
       unawaited(_initComets());
+      unawaited(updater.check(silent: true));
     } catch (e) {
       loadError = 'Non riesco a leggere il catalogo: $e';
       notifyListeners();
@@ -69,7 +100,7 @@ class AppState extends ChangeNotifier {
     final int gen = ++_generation;
     computing = true;
     notifyListeners();
-    final Float32List res = await compute(computeMonthlyHours, MonthlyRequest(_ra, _dec, siteParams, DateTime.now().year));
+    final Float32List res = await compute(computeMonthlyHours, MonthlyRequest(_ra, _dec, siteParams, now().year));
     if (gen != _generation) return; // nel frattempo sono cambiate le impostazioni
     _monthly = res;
     final int n = objects.length;
