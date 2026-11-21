@@ -27,7 +27,7 @@ import urllib.request
 import numpy as np
 from PIL import Image, ImageStat
 
-W, H = 480, 360
+W, H = 960, 720
 QUALITY = 74
 HOSTS = ('alasky.cds.unistra.fr', 'alaskybis.cds.unistra.fr')
 
@@ -281,19 +281,31 @@ def main():
         ex.shutdown(wait=True, cancel_futures=True)
         json.dump(meta, open(meta_path, 'w'))
 
+    # Finché le immagini nitide non sono tutte pronte, per gli oggetti che
+    # mancano si usano quelle piccole delle versioni precedenti (FALLBACK_CACHE),
+    # così il pacchetto pubblicato non perde mai oggetti.
+    fb_dir = pathlib.Path(os.environ.get('FALLBACK_CACHE', '/nonexistent'))
+    fb_meta = json.load(open(fb_dir / 'meta.json')) if (fb_dir / 'meta.json').exists() else {}
     items, counts = {}, {}
+    sharp = 0
     with open(out_bin, 'wb') as fb:
         for o in objs:
             m = meta.get(o['i'])
             p = cache / f"{safe(o['i'])}.jpg"
-            if not m or not p.exists():
-                continue
+            if m and p.exists():
+                sharp += 1
+            else:
+                m = fb_meta.get(o['i'])
+                p = fb_dir / f"{safe(o['i'])}.jpg"
+                if not m or not p.exists():
+                    continue
             data = p.read_bytes()
             items[o['i']] = [fb.tell(), len(data), m[0], m[1]]
             fb.write(data)
             counts[m[1]] = counts.get(m[1], 0) + 1
     size = sum(v[1] for v in items.values())
     missing = [[o['i'], failures.get(o['i'], 'non ancora scaricato')] for o in objs if o['i'] not in items]
+    not_sharp = len(objs) - sharp
     index = {
         'version': 1,
         'created': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
@@ -305,12 +317,11 @@ def main():
         'missing': missing,
     }
     json.dump(index, open(out_idx, 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
-    print(json.dumps({'immagini': len(items), 'mancanti': len(missing), 'MB': round(size / 1e6, 1), 'fonti': counts}))
+    print(json.dumps({'immagini': len(items), 'nitide': sharp, 'mancanti': len(missing), 'MB': round(size / 1e6, 1), 'fonti': counts}))
     for oid, err in missing[:40]:
         print('manca', oid, '-', err)
     with open(os.environ.get('GITHUB_OUTPUT', os.devnull), 'a') as gh:
-        colour = sum(v for k, v in counts.items() if k != 'skyview')
-        gh.write(f'count={len(items)}\nmissing={len(missing)}\ncolour={colour}\n')
+        gh.write(f'count={len(items)}\nmissing={not_sharp}\nsharp={sharp}\n')
     if not items:
         sys.exit('Nessuna immagine scaricata: le fonti non rispondono.')
 

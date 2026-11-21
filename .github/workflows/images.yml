@@ -63,31 +63,42 @@ jobs:
       - run: pip install pillow numpy
         if: steps.need.outputs.run == 'true'
 
-      - name: Recupera le immagini già scaricate
+      # Immagini piccole (480 px) delle versioni precedenti: servono solo
+      # come riserva finché quelle nitide non sono tutte scaricate.
+      - name: Recupera le immagini piccole
         if: steps.need.outputs.run == 'true'
         uses: actions/cache/restore@v4
         with:
           path: cache
-          key: imgcache-${{ steps.need.outputs.hash }}-${{ github.run_id }}
+          key: imgcache-none
           restore-keys: |
-            imgcache-${{ steps.need.outputs.hash }}-
             imgcache-
+
+      - name: Recupera le immagini nitide già scaricate
+        if: steps.need.outputs.run == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: cache960
+          key: img960-${{ steps.need.outputs.hash }}-${{ github.run_id }}
+          restore-keys: |
+            img960-${{ steps.need.outputs.hash }}-
+            img960-
 
       - name: Scarica e impacchetta le immagini
         id: pack
         if: steps.need.outputs.run == 'true'
         run: |
           mkdir -p out
-          python3 -u ci/images/build_pack.py assets/catalog.json out/repertorio.bin out/repertorio.json \
-            "${{ github.event.inputs.limit || '0' }}" cache 2>&1 | tee out/log.txt
+          FALLBACK_CACHE=cache python3 -u ci/images/build_pack.py assets/catalog.json out/repertorio.bin out/repertorio.json \
+            "${{ github.event.inputs.limit || '0' }}" cache960 2>&1 | tee out/log.txt
           exit ${PIPESTATUS[0]}
 
       - name: Salva le immagini scaricate
         if: always() && steps.need.outputs.run == 'true'
         uses: actions/cache/save@v4
         with:
-          path: cache
-          key: imgcache-${{ steps.need.outputs.hash }}-${{ github.run_id }}
+          path: cache960
+          key: img960-${{ steps.need.outputs.hash }}-${{ github.run_id }}
 
       - name: Pubblica la Release
         if: steps.need.outputs.run == 'true'
@@ -98,7 +109,7 @@ jobs:
           {
             echo "Pacchetto offline delle immagini di repertorio per l'app (si scarica da Impostazioni)."
             echo
-            echo "Oggetti con immagine: ${{ steps.pack.outputs.count }} (a colori ${{ steps.pack.outputs.colour }}), ancora mancanti: $MISSING."
+            echo "Oggetti con immagine: ${{ steps.pack.outputs.count }} (nitide 960 px ${{ steps.pack.outputs.sharp }}), ancora da rendere nitide: $MISSING."
             echo
             echo "Fonti: Digitized Sky Survey (STScI/NASA), Pan-STARRS DR1 (STScI/MAST), Milky Way Panorama di Axel Mellinger,"
             echo "ritagli e colori del CDS di Strasburgo (hips2fits); lastre DSS2 rossa e blu da NASA SkyView, ricomposte a colori."
@@ -109,7 +120,7 @@ jobs:
             echo
             echo "stato: $STATO ${{ steps.need.outputs.hash }}"
           } > notes.md
-          COUNT="${{ steps.pack.outputs.count }} (a colori ${{ steps.pack.outputs.colour }})"
+          COUNT="${{ steps.pack.outputs.count }} (nitide 960 px ${{ steps.pack.outputs.sharp }})"
           PREV=$(gh release list --limit 50 --json tagName -q '.[].tagName' | grep '^immagini-' | head -1 || true)
           if [ -n "$PREV" ] && [ "${{ github.event_name }}" = "schedule" ]; then
             PREV_COUNT=$(gh release view "$PREV" --json body -q .body | sed -n 's/^Oggetti con immagine: \(.*\), ancora.*/\1/p')
