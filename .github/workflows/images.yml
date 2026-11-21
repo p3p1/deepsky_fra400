@@ -1,0 +1,60 @@
+# Crea il pacchetto offline delle immagini di repertorio e lo pubblica come
+# Release (non "latest", così non interferisce con gli aggiornamenti dell'app).
+# Si avvia a mano dalla scheda Actions, oppure quando cambiano il catalogo o lo script.
+name: Pacchetto immagini di repertorio
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Numero massimo di oggetti (0 = tutti, utile per una prova)'
+        required: false
+        default: '0'
+  push:
+    branches: [main]
+    paths:
+      - 'ci/images/**'
+      - 'assets/catalog.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: images
+  cancel-in-progress: true
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install pillow
+
+      - name: Scarica e impacchetta le immagini
+        run: |
+          mkdir -p out
+          python3 ci/images/build_pack.py assets/catalog.json out/repertorio.bin out/repertorio.json "${{ github.event.inputs.limit || '0' }}" | tee out/log.txt
+
+      - name: Pubblica la Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="immagini-$(date -u +%Y%m%d)-${{ github.run_number }}"
+          {
+            echo "Pacchetto offline delle immagini di repertorio per l'app (si scarica da Impostazioni)."
+            echo
+            echo "Fonti: Digitized Sky Survey (STScI/NASA), Pan-STARRS DR1 (STScI/MAST), Milky Way Panorama di Axel Mellinger;"
+            echo "ritagli e colori del CDS di Strasburgo (hips2fits)."
+            echo
+            echo '```'
+            tail -n 45 out/log.txt
+            echo '```'
+          } > notes.md
+          gh release create "$TAG" out/repertorio.bin out/repertorio.json \
+            --title "Immagini di repertorio $(date -u +%Y-%m-%d)" --notes-file notes.md --latest=false
