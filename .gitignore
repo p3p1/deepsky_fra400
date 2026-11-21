@@ -6,3 +6,4 @@ build/
 pubspec.lock
 # La cartella android/ viene generata dalla build online (vedi codemagic.yaml).
 android/
+ci/release.keystore

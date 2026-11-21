@@ -38,6 +38,23 @@ jobs:
           flutter-version: '3.50.0'
           cache: true
 
+      # Chiave di firma personale: è nel repository solo cifrata
+      # (ci/release.keystore.enc); la password è il segreto RELEASE_KEY_PASSWORD.
+      # Se il segreto manca si firma con la chiave di prova ci/debug.keystore.
+      - name: Prepara la chiave di firma
+        env:
+          KEY_PW: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEY_PW" ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in ci/release.keystore.enc -out ci/release.keystore -pass env:KEY_PW
+            echo "SIGN_STORE=../ci/release.keystore" >> "$GITHUB_ENV"
+            echo "SIGN_ALIAS=deepsky" >> "$GITHUB_ENV"
+            echo "SIGN_PASS=$KEY_PW" >> "$GITHUB_ENV"
+            echo "Firma con la chiave personale."
+          else
+            echo "::warning::Segreto RELEASE_KEY_PASSWORD assente: firmo con la chiave di prova."
+          fi
+
       # La parte Android non è nel repository: si genera dal modello di Flutter
       # e poi si aggiungono nome dell'app, permessi e firma fissa.
       - name: Genera il progetto Android

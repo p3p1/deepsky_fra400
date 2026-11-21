@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Aggiunge nome dell'app e permessi al manifest generato da `flutter create`."""
 import pathlib
+import os
 import sys
 
 path = pathlib.Path('android/app/src/main/AndroidManifest.xml')
@@ -46,15 +47,23 @@ for old in ('compileSdk = flutter.compileSdkVersion', 'compileSdkVersion flutter
 else:
     sys.exit(f'{gradle}: riga compileSdk non trovata')
 
-# Firma sempre con ci/debug.keystore, qualunque sia la macchina di build:
+# Firma sempre con la stessa chiave, qualunque sia la macchina di build:
 # Android installa un aggiornamento solo se la firma è la stessa.
+# Con le variabili SIGN_* (impostate dal workflow quando il segreto
+# RELEASE_KEY_PASSWORD c'è) usa la chiave personale ci/release.keystore,
+# altrimenti la chiave di prova ci/debug.keystore. La password non viene
+# scritta nei file: Gradle la legge dall'ambiente.
+store = os.environ.get('SIGN_STORE', '../ci/debug.keystore')
+alias = os.environ.get('SIGN_ALIAS', 'androiddebugkey')
+if 'SIGN_PASS' not in os.environ:
+    os.environ['SIGN_PASS'] = 'android'
 if gradle.suffix == '.kts':
     signing = '''    signingConfigs {
         create("fixed") {
-            storeFile = rootProject.file("../ci/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            storeFile = rootProject.file("STORE")
+            storePassword = System.getenv("SIGN_PASS") ?: "android"
+            keyAlias = "ALIAS"
+            keyPassword = System.getenv("SIGN_PASS") ?: "android"
         }
     }
 
@@ -63,10 +72,10 @@ if gradle.suffix == '.kts':
 else:
     signing = '''    signingConfigs {
         fixed {
-            storeFile rootProject.file("../ci/debug.keystore")
-            storePassword "android"
-            keyAlias "androiddebugkey"
-            keyPassword "android"
+            storeFile rootProject.file("STORE")
+            storePassword System.getenv("SIGN_PASS") ?: "android"
+            keyAlias "ALIAS"
+            keyPassword System.getenv("SIGN_PASS") ?: "android"
         }
     }
 
@@ -74,6 +83,7 @@ else:
     use_old, use_new = 'signingConfig signingConfigs.debug', 'signingConfig signingConfigs.fixed'
 if use_old not in g or '    buildTypes {' not in g:
     sys.exit(f'{gradle}: configurazione di firma non trovata')
+signing = signing.replace('STORE', store).replace('ALIAS', alias)
 g = g.replace('    buildTypes {', signing, 1).replace(use_old, use_new, 1)
 gradle.write_text(g, encoding='utf-8')
-print(f'{gradle}: compileSdk = {COMPILE_SDK}, firma fissa con ci/debug.keystore')
+print(f'{gradle}: compileSdk = {COMPILE_SDK}, firma con {store} ({alias})')
