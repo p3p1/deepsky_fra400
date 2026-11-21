@@ -157,12 +157,17 @@ class ImagePack extends ChangeNotifier {
       status = PackStatus.idle;
     } catch (e) {
       status = silent ? PackStatus.idle : PackStatus.error;
-      message = silent ? null : 'Controllo non riuscito: verifica la connessione ($e).';
+      message = silent ? null : 'Controllo non riuscito: verifica la connessione (${_short(e)}).';
     }
     notifyListeners();
   }
 
   /// Scarica il pacchetto completo e lo sostituisce a quello presente.
+  ///
+  /// Il file grande si scarica a pezzi ripartendo da dove si è interrotto
+  /// (richieste HTTP "Range"): se la connessione cade, anche in 5G, riprova
+  /// da sola più volte e non ricomincia da zero. Un download lasciato a metà
+  /// riprende anche al tentativo successivo, purché il pacchetto sia lo stesso.
   Future<void> download() async {
     if (busy) return;
     if (available == null) await check();
@@ -176,20 +181,89 @@ class ImagePack extends ChangeNotifier {
     final Directory d = await _dir();
     final File binPart = File('${d.path}/repertorio.bin.part');
     final File idxPart = File('${d.path}/repertorio.json.part');
+    final File partTag = File('${d.path}/repertorio.part.tag');
     try {
-      final http.Response idx = await client.get(Uri.parse(rel.indexUrl)).timeout(const Duration(seconds: 60));
+      // Un pezzo scaricato di un pacchetto diverso non serve più.
+      if (!partTag.existsSync() || partTag.readAsStringSync() != rel.tag) {
+        if (binPart.existsSync()) binPart.deleteSync();
+        partTag.writeAsStringSync(rel.tag, flush: true);
+      }
+
+      final http.Response idx = await _retry(() => client.get(Uri.parse(rel.indexUrl)).timeout(const Duration(seconds: 60)));
       if (idx.statusCode != 200) throw HttpException('indice non scaricato (${idx.statusCode})');
       final Map<String, dynamic> j = jsonDecode(utf8.decode(idx.bodyBytes)) as Map<String, dynamic>;
       j['tag'] = rel.tag;
       await idxPart.writeAsString(jsonEncode(j), flush: true);
 
-      final http.StreamedResponse r = await client.send(http.Request('GET', Uri.parse(rel.binUrl))).timeout(const Duration(seconds: 60));
-      if (r.statusCode != 200) throw HttpException('immagini non scaricate (${r.statusCode})');
-      final int total = r.contentLength ?? rel.binSize;
-      final IOSink sink = binPart.openWrite();
-      int received = 0;
-      DateTime last = DateTime.now();
-      await for (final List<int> chunk in r.stream.timeout(const Duration(seconds: 60))) {
+      int total = rel.binSize;
+      int failures = 0;
+      while (true) {
+        final int have = binPart.existsSync() ? binPart.lengthSync() : 0;
+        if (total > 0 && have >= total) break;
+        try {
+          total = await _fetchFrom(client, rel.binUrl, binPart, have, total);
+          failures = 0;
+        } on Exception catch (_) {
+          failures++;
+          final int now = binPart.existsSync() ? binPart.lengthSync() : 0;
+          // Se è arrivato qualcosa si continua; se non arriva nulla per 6 volte di fila ci si arrende.
+          if (now > have) failures = 0;
+          if (failures >= 6) rethrow;
+          message = 'Connessione interrotta, riprendo da ${fmtMegabytes(now)}…';
+          notifyListeners();
+          await Future<void>.delayed(Duration(seconds: 2 * failures + 1));
+        }
+        if (total <= 0) break; // dimensione sconosciuta: un solo passaggio completo
+      }
+      final int got = binPart.lengthSync();
+      if (total > 0 && got != total) throw HttpException('file incompleto ($got di $total byte)');
+
+      await _raf?.close();
+      _raf = null;
+      await binPart.rename('${d.path}/repertorio.bin');
+      await idxPart.rename('${d.path}/repertorio.json');
+      if (partTag.existsSync()) partTag.deleteSync();
+      status = PackStatus.idle;
+      progress = 1;
+      await load();
+      message = 'Immagini scaricate: ${fmtCount(count)} oggetti, disponibili anche senza rete.';
+    } catch (e) {
+      status = PackStatus.error;
+      final int kept = binPart.existsSync() ? binPart.lengthSync() : 0;
+      message = 'Download non riuscito (${_short(e)}). '
+          '${kept > 0 ? 'Ho tenuto i ${fmtMegabytes(kept)} già scaricati: premendo di nuovo riprende da lì. ' : ''}'
+          'Meglio il WiFi.';
+      if (idxPart.existsSync()) idxPart.deleteSync();
+    } finally {
+      client.close();
+    }
+    notifyListeners();
+  }
+
+  /// Scarica [url] in coda a [file] a partire dal byte [from]. Restituisce la
+  /// dimensione totale del file sul server.
+  Future<int> _fetchFrom(http.Client client, String url, File file, int from, int total) async {
+    final http.Request req = http.Request('GET', Uri.parse(url));
+    if (from > 0) req.headers['Range'] = 'bytes=$from-';
+    final http.StreamedResponse r = await client.send(req).timeout(const Duration(seconds: 60));
+    int start = from;
+    if (r.statusCode == 200) {
+      start = 0; // il server non accetta Range: si ricomincia
+      final int? len = r.contentLength;
+      if (len != null && len > 0) total = len;
+    } else if (r.statusCode == 206) {
+      final RegExpMatch? m = RegExp(r'/(\d+)$').firstMatch(r.headers['content-range'] ?? '');
+      if (m != null) total = int.parse(m.group(1)!);
+    } else if (r.statusCode == 416) {
+      return total; // già tutto scaricato
+    } else {
+      throw HttpException('il server ha risposto ${r.statusCode}');
+    }
+    final IOSink sink = file.openWrite(mode: start == 0 ? FileMode.write : FileMode.append);
+    int received = start;
+    DateTime last = DateTime.now();
+    try {
+      await for (final List<int> chunk in r.stream.timeout(const Duration(seconds: 45))) {
         sink.add(chunk);
         received += chunk.length;
         if (total > 0 && DateTime.now().difference(last).inMilliseconds > 200) {
@@ -198,34 +272,38 @@ class ImagePack extends ChangeNotifier {
           notifyListeners();
         }
       }
-      await sink.close();
-      if (total > 0 && received < total) throw const HttpException('download interrotto');
-
-      await _raf?.close();
-      _raf = null;
-      await binPart.rename('${d.path}/repertorio.bin');
-      await idxPart.rename('${d.path}/repertorio.json');
-      status = PackStatus.idle;
-      progress = 1;
-      await load();
-      message = 'Immagini scaricate: ${fmtCount(count)} oggetti, disponibili anche senza rete.';
-    } catch (e) {
-      status = PackStatus.error;
-      message = 'Download non riuscito: $e. Puoi riprovare: serve una connessione stabile (meglio il WiFi).';
-      for (final File f in <File>[binPart, idxPart]) {
-        if (f.existsSync()) f.deleteSync();
-      }
     } finally {
-      client.close();
+      await sink.flush();
+      await sink.close();
     }
-    notifyListeners();
+    return total;
+  }
+
+  Future<T> _retry<T>(Future<T> Function() f) async {
+    for (int i = 0;; i++) {
+      try {
+        return await f();
+      } on Exception catch (_) {
+        if (i >= 3) rethrow;
+        await Future<void>.delayed(Duration(seconds: 2 + 2 * i));
+      }
+    }
+  }
+
+  static String _short(Object e) {
+    if (e is http.ClientException) return e.message;
+    if (e is TimeoutException) return 'nessuna risposta dal server';
+    if (e is SocketException) return 'rete non raggiungibile';
+    if (e is HttpException) return e.message;
+    final String s = e.toString();
+    return s.length > 120 ? '${s.substring(0, 120)}…' : s;
   }
 
   Future<void> delete() async {
     await _raf?.close();
     _raf = null;
     final Directory d = await _dir();
-    for (final String n in <String>['repertorio.bin', 'repertorio.json']) {
+    for (final String n in <String>['repertorio.bin', 'repertorio.json', 'repertorio.bin.part', 'repertorio.part.tag']) {
       final File f = File('${d.path}/$n');
       if (f.existsSync()) f.deleteSync();
     }
