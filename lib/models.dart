@@ -262,6 +262,53 @@ class DsObject {
     }
   }
 
+  /// Filtri commerciali noti adatti a questo tipo di oggetto, con il loro ruolo.
+  /// Il primo elemento indica se è il filtro che hai già.
+  List<FilterSuggestion> get filterSuggestions {
+    const FilterSuggestion s200 = FilterSuggestion('SVBONY S200', 'Dual-band Hα + OIII', 'Quello che hai già: va bene dal balcone e con la Luna.', owned: true);
+    const FilterSuggestion lExtreme = FilterSuggestion('Optolong L-eXtreme', 'Dual-band Hα + OIII, 7 nm',
+        'Il riferimento per le camere a colori sotto cielo urbano: fondo cielo più scuro dell\'S200.');
+    const FilterSuggestion alpT = FilterSuggestion('Antlia ALP-T', 'Dual-band Hα + OIII, 5 nm',
+        'Bande più strette: più contrasto con la Luna, stelle più piccole.');
+    const FilterSuggestion lSynergy = FilterSuggestion('Optolong L-Synergy', 'Dual-band SII + OIII, 7 nm',
+        'Da usare insieme a un Hα + OIII per comporre la palette SHO (Hubble).');
+    const FilterSuggestion lEnhance = FilterSuggestion('Optolong L-eNhance', 'Tri-band Hα, Hβ, OIII',
+        'Bande più larghe: colori più naturali, adatto a cieli poco o mediamente inquinati.');
+    const FilterSuggestion uvir = FilterSuggestion('Baader UV/IR-Cut', 'Banda larga',
+        'Lascia passare tutto il visibile: colori naturali sotto un cielo buio.');
+    const FilterSuggestion lPro = FilterSuggestion('Optolong L-Pro', 'Antinquinamento a banda larga',
+        'Taglia le righe dell\'illuminazione stradale conservando il colore delle stelle: utile in città.');
+    const FilterSuggestion lpsD1 = FilterSuggestion('IDAS LPS-D1', 'Antinquinamento a banda larga',
+        'Alternativa al L-Pro, con resa del colore molto neutra.');
+    switch (type) {
+      case 'EN':
+        return const <FilterSuggestion>[s200, lExtreme, alpT, lSynergy];
+      case 'SNR':
+        return const <FilterSuggestion>[s200, lExtreme, alpT, lSynergy];
+      case 'PN':
+        return const <FilterSuggestion>[s200, lExtreme, alpT, lEnhance];
+      case 'MIX':
+        return const <FilterSuggestion>[s200, lEnhance, lPro, uvir];
+      case 'NEB':
+        return const <FilterSuggestion>[s200, lEnhance, lPro, uvir];
+      case 'RN':
+      case 'DN':
+        return const <FilterSuggestion>[uvir, lPro, lpsD1];
+      case 'GAL':
+        final bool spiral = major >= 10 && RegExp(r'^(S[^0]|I)').hasMatch(morph);
+        return <FilterSuggestion>[
+          uvir,
+          lPro,
+          lpsD1,
+          if (spiral)
+            const FilterSuggestion('SVBONY S200', 'Dual-band Hα + OIII',
+                'Quello che hai già: solo come serie aggiuntiva per le regioni HII nei bracci.', owned: true),
+        ];
+      default:
+        return const <FilterSuggestion>[uvir, lPro, lpsD1];
+    }
+  }
+
   bool get _isCluster => type == 'OC' || type == 'GC' || type == 'AST' || type == 'OTH';
 
   /// Coppie etichetta/valore con i parametri di ripresa di partenza.
@@ -302,6 +349,14 @@ class DsObject {
     if (source == 'OpenNGC') n.add('Dati presi da OpenNGC: l\'oggetto manca nell\'edizione standard del catalogo di Stellarium.');
     return n;
   }
+}
+
+class FilterSuggestion {
+  const FilterSuggestion(this.name, this.kind, this.why, {this.owned = false});
+  final String name;
+  final String kind;
+  final String why;
+  final bool owned;
 }
 
 /// Qualcosa di cui si può disegnare la traiettoria: un oggetto del catalogo

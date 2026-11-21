@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 import '../app_state.dart';
 import '../models.dart';
 import '../theme.dart';
+import '../widgets/reference_image.dart';
 import 'trajectory_view.dart';
 
 class ScoreBadge extends StatelessWidget {
@@ -214,6 +215,8 @@ class _ObjectDetailState extends State<ObjectDetail> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        _section('Immagine di repertorio'),
+        ReferenceImage(key: ValueKey<String>('img-${o.id}'), object: o),
         _section('Inquadratura in scala'),
         Card(
           child: Padding(
@@ -274,6 +277,33 @@ class _ObjectDetailState extends State<ObjectDetail> {
           ),
         _section('Filtro'),
         for (final String f in o.filterLong) Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(f, style: const TextStyle(fontSize: 13.5))),
+        const SizedBox(height: 6),
+        Text('Filtri più usati per questo tipo di oggetto', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        for (final FilterSuggestion f in o.filterSuggestions)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.only(top: 2, right: 8),
+                  child: Icon(f.owned ? Icons.check_circle : Icons.filter_alt_outlined, size: 16, color: f.owned ? AppColors.accent : AppColors.muted),
+                ),
+                Expanded(
+                  child: Text.rich(TextSpan(children: <InlineSpan>[
+                    TextSpan(text: f.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    TextSpan(text: ' · ${f.kind}\n', style: const TextStyle(color: AppColors.muted)),
+                    TextSpan(text: f.why),
+                  ]), style: const TextStyle(fontSize: 13)),
+                ),
+              ],
+            ),
+          ),
+        const Text(
+          'Con il riduttore a f/3,9 i filtri a banda molto stretta (5 nm o meno) possono perdere segnale: verifica che il produttore li dichiari adatti a ottiche veloci.',
+          style: TextStyle(color: AppColors.muted, fontSize: 12),
+        ),
         _section('Parametri di partenza'),
         _facts(o.shooting),
         _section('Ore utili per notte, mese per mese'),
