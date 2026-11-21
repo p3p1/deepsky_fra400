@@ -19,7 +19,7 @@ class PackEntry {
   final int offset;
   final int length;
   final double fovDeg; // campo dell'immagine sul lato lungo, gradi
-  final String source; // dss2, panstarrs, mellinger
+  final String source; // dss2, panstarrs, mellinger, skyview
 }
 
 /// Crediti da mostrare sotto l'immagine, per fonte.
@@ -27,6 +27,8 @@ String packSourceCredit(String source) {
   switch (source) {
     case 'panstarrs':
       return 'Pan-STARRS DR1 (STScI/MAST), ritaglio CDS Strasburgo.';
+    case 'skyview':
+      return 'Digitized Sky Survey 2, rosso (STScI/NASA), tramite NASA SkyView.';
     case 'mellinger':
       return 'Milky Way Panorama di Axel Mellinger, ritaglio CDS Strasburgo.';
     default:
@@ -71,6 +73,8 @@ class ImagePack extends ChangeNotifier {
   String? installedTag;
   DateTime? installedDate;
   int installedBytes = 0;
+  /// Falso se il pacchetto sul telefono è parziale (creazione ancora in corso su GitHub).
+  bool complete = true;
 
   PackRelease? available;
   PackStatus status = PackStatus.idle;
@@ -107,6 +111,7 @@ class ImagePack extends ChangeNotifier {
       });
       _items = items;
       installedTag = j['tag'] as String?;
+      complete = j['complete'] as bool? ?? true;
       installedDate = DateTime.tryParse((j['created'] as String?) ?? '');
       installedBytes = bin.lengthSync();
       await _raf?.close();

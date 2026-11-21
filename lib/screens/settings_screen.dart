@@ -377,6 +377,12 @@ class ImagePackPanel extends StatelessWidget {
                   : 'Le immagini non sono ancora sul telefono.',
               style: const TextStyle(fontSize: 13.5),
             ),
+            if (p.installed && !p.complete && !p.updateAvailable)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text('Pacchetto parziale: GitHub sta ancora scaricando le altre immagini. Premi «Controlla» più tardi.',
+                    style: TextStyle(color: AppColors.muted, fontSize: 13)),
+              ),
             if (p.installed && p.updateAvailable)
               const Padding(
                 padding: EdgeInsets.only(top: 4),

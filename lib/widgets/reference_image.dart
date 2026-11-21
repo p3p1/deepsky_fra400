@@ -41,11 +41,14 @@ class _ReferenceImageState extends State<ReferenceImage> {
         }
         final PackEntry? e = p.entryFor(widget.object.id);
         if (e == null) {
-          return const Card(
+          return Card(
             child: Padding(
-              padding: EdgeInsets.all(14),
-              child: Text('Per questo oggetto le survey disponibili non hanno un\'immagine utilizzabile.',
-                  style: TextStyle(color: AppColors.muted, fontSize: 13)),
+              padding: const EdgeInsets.all(14),
+              child: Text(
+                  p.complete
+                      ? 'Per questo oggetto le survey disponibili non hanno un\'immagine utilizzabile.'
+                      : 'Questa immagine non è ancora nel pacchetto: arriverà con il prossimo aggiornamento delle immagini (Impostazioni → Immagini di repertorio).',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 13)),
             ),
           );
         }

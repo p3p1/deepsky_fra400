@@ -1,6 +1,10 @@
 # Crea il pacchetto offline delle immagini di repertorio e lo pubblica come
 # Release (non "latest", così non interferisce con gli aggiornamenti dell'app).
-# Si avvia a mano dalla scheda Actions, oppure quando cambiano il catalogo o lo script.
+#
+# Le immagini già scaricate restano nella cache di GitHub Actions: ogni
+# esecuzione scarica solo quelle mancanti e pubblica comunque quello che ha.
+# Finché il pacchetto non è completo, l'esecuzione programmata ogni 6 ore
+# riprende da dove era rimasta; quando è completo non fa più nulla.
 name: Pacchetto immagini di repertorio
 
 on:
@@ -15,46 +19,104 @@ on:
     paths:
       - 'ci/images/**'
       - 'assets/catalog.json'
+      - '.github/workflows/images.yml'
+  schedule:
+    - cron: '17 */6 * * *'
 
 permissions:
   contents: write
 
 concurrency:
   group: images
-  cancel-in-progress: true
+  # Un nuovo push (script o catalogo cambiati) interrompe l'esecuzione in corso.
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   pack:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 260
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TIME_BUDGET_MIN: '210'
     steps:
       - uses: actions/checkout@v4
 
+      - name: Serve lavorare?
+        id: need
+        run: |
+          HASH=$(sha256sum assets/catalog.json ci/images/build_pack.py | sha256sum | cut -c1-16)
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+          DONE=$(gh release list --limit 30 --json tagName,isLatest -q '.[].tagName' | grep '^immagini-' | while read -r t; do
+            gh release view "$t" --json body -q .body | grep -q "stato: completo $HASH" && echo yes && break
+          done || true)
+          if [ "$DONE" = "yes" ] && [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "Pacchetto già completo."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-python@v5
+        if: steps.need.outputs.run == 'true'
         with:
           python-version: '3.12'
 
       - run: pip install pillow
+        if: steps.need.outputs.run == 'true'
+
+      - name: Recupera le immagini già scaricate
+        if: steps.need.outputs.run == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: cache
+          key: imgcache-${{ steps.need.outputs.hash }}-${{ github.run_id }}
+          restore-keys: |
+            imgcache-${{ steps.need.outputs.hash }}-
+            imgcache-
 
       - name: Scarica e impacchetta le immagini
+        id: pack
+        if: steps.need.outputs.run == 'true'
         run: |
           mkdir -p out
-          python3 ci/images/build_pack.py assets/catalog.json out/repertorio.bin out/repertorio.json "${{ github.event.inputs.limit || '0' }}" | tee out/log.txt
+          python3 -u ci/images/build_pack.py assets/catalog.json out/repertorio.bin out/repertorio.json \
+            "${{ github.event.inputs.limit || '0' }}" cache 2>&1 | tee out/log.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Salva le immagini scaricate
+        if: always() && steps.need.outputs.run == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: cache
+          key: imgcache-${{ steps.need.outputs.hash }}-${{ github.run_id }}
 
       - name: Pubblica la Release
-        env:
-          GH_TOKEN: ${{ github.token }}
+        if: steps.need.outputs.run == 'true'
         run: |
           TAG="immagini-$(date -u +%Y%m%d)-${{ github.run_number }}"
+          MISSING="${{ steps.pack.outputs.missing }}"
+          if [ "$MISSING" = "0" ]; then STATO="completo"; else STATO="parziale"; fi
           {
             echo "Pacchetto offline delle immagini di repertorio per l'app (si scarica da Impostazioni)."
             echo
-            echo "Fonti: Digitized Sky Survey (STScI/NASA), Pan-STARRS DR1 (STScI/MAST), Milky Way Panorama di Axel Mellinger;"
-            echo "ritagli e colori del CDS di Strasburgo (hips2fits)."
+            echo "Oggetti con immagine: ${{ steps.pack.outputs.count }}, ancora mancanti: $MISSING."
+            echo
+            echo "Fonti: Digitized Sky Survey (STScI/NASA), Pan-STARRS DR1 (STScI/MAST), Milky Way Panorama di Axel Mellinger,"
+            echo "ritagli e colori del CDS di Strasburgo (hips2fits); NASA SkyView come ultima risorsa."
             echo
             echo '```'
             tail -n 45 out/log.txt
             echo '```'
+            echo
+            echo "stato: $STATO ${{ steps.need.outputs.hash }}"
           } > notes.md
+          COUNT="${{ steps.pack.outputs.count }}"
+          PREV=$(gh release list --limit 50 --json tagName -q '.[].tagName' | grep '^immagini-' | head -1 || true)
+          if [ -n "$PREV" ] && [ "${{ github.event_name }}" = "schedule" ]; then
+            PREV_COUNT=$(gh release view "$PREV" --json body -q .body | sed -n 's/^Oggetti con immagine: \([0-9]*\),.*/\1/p')
+            if [ "$PREV_COUNT" = "$COUNT" ]; then echo "Nessuna immagine nuova: non pubblico."; exit 0; fi
+          fi
+          OLD=$(gh release list --limit 50 --json tagName -q '.[].tagName' | grep '^immagini-' || true)
           gh release create "$TAG" out/repertorio.bin out/repertorio.json \
-            --title "Immagini di repertorio $(date -u +%Y-%m-%d)" --notes-file notes.md --latest=false
+            --title "Immagini di repertorio $(date -u +%Y-%m-%d) ($STATO)" --notes-file notes.md --latest=false
+          # Tiene solo il pacchetto più recente.
+          for t in $OLD; do gh release delete "$t" --yes --cleanup-tag || true; done
