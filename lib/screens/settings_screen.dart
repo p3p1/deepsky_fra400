@@ -8,6 +8,7 @@ import '../astro.dart';
 import '../models.dart';
 import '../settings.dart';
 import '../theme.dart';
+import '../image_pack.dart';
 import '../updater.dart';
 import 'catalog_screen.dart';
 
@@ -254,6 +255,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChangeEnd: (_) => st.changeSettings((AppSettings a) {}, rescore: false),
             ),
 
+            _title('Immagini di repertorio'),
+            ImagePackPanel(pack: st.images),
+
             _title('Aggiornamenti'),
             UpdatePanel(updater: st.updater),
 
@@ -340,6 +344,83 @@ class UpdatePanel extends StatelessWidget {
             const Text(
               'Le versioni nuove vengono pubblicate sul repository GitHub a ogni modifica e si installano sopra quella '
               'presente, senza perdere impostazioni e collegamenti. L\'app controlla da sola all\'avvio quando c\'è internet.',
+              style: TextStyle(color: AppColors.muted, fontSize: 12),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Scaricamento, aggiornamento ed eliminazione del pacchetto immagini.
+class ImagePackPanel extends StatelessWidget {
+  const ImagePackPanel({super.key, required this.pack});
+
+  final ImagePack pack;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: pack,
+      builder: (BuildContext context, Widget? _) {
+        final ImagePack p = pack;
+        final bool downloading = p.status == PackStatus.downloading;
+        final String size = p.available != null && p.available!.binSize > 0 ? ' (${fmtMegabytes(p.available!.binSize)})' : '';
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              p.installed
+                  ? 'Sul telefono: ${fmtCount(p.count)} immagini, ${fmtMegabytes(p.installedBytes)}'
+                      '${p.installedDate != null ? ', create il ${p.installedDate!.day} ${kMonthsShort[p.installedDate!.month - 1]} ${p.installedDate!.year}' : ''}.'
+                  : 'Le immagini non sono ancora sul telefono.',
+              style: const TextStyle(fontSize: 13.5),
+            ),
+            if (p.installed && p.updateAvailable)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text('È disponibile un pacchetto più recente.', style: TextStyle(color: AppColors.accent, fontSize: 13)),
+              ),
+            if (downloading) ...<Widget>[
+              const SizedBox(height: 6),
+              LinearProgressIndicator(value: p.progress > 0 ? p.progress : null),
+              const SizedBox(height: 2),
+              Text('Scarico… ${(p.progress * 100).round()}%', style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+            ],
+            if (p.message != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(p.message!, style: TextStyle(color: p.status == PackStatus.error ? AppColors.q2 : AppColors.muted, fontSize: 13)),
+              ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                if (!p.installed || p.updateAvailable)
+                  FilledButton.icon(
+                    onPressed: p.busy ? null : p.download,
+                    icon: const Icon(Icons.download),
+                    label: Text(p.installed ? 'Aggiorna le immagini$size' : 'Scarica le immagini$size'),
+                  ),
+                OutlinedButton.icon(
+                  onPressed: p.busy ? null : () => p.check(),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Controlla'),
+                ),
+                if (p.installed)
+                  TextButton.icon(
+                    onPressed: p.busy ? null : p.delete,
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Elimina'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Un\'immagine per ogni oggetto del catalogo, presa dalle survey fotografiche del cielo (Digitized Sky Survey, '
+              'Pan-STARRS, Mellinger) tramite il CDS di Strasburgo. Si scarica una volta, meglio in WiFi, e poi funziona anche senza rete.',
               style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
           ],

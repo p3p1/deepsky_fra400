@@ -6,6 +6,9 @@ name: Build e pubblicazione APK
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'ci/images/**'
+      - '.github/workflows/images.yml'
   workflow_dispatch:
 
 permissions:

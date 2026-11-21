@@ -216,7 +216,7 @@ class _ObjectDetailState extends State<ObjectDetail> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _section('Immagine di repertorio'),
-        ReferenceImage(key: ValueKey<String>('img-${o.id}'), object: o),
+        ReferenceImage(key: ValueKey<String>('img-${o.id}'), object: o, pack: st.images),
         _section('Inquadratura in scala'),
         Card(
           child: Padding(

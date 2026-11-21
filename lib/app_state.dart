@@ -10,6 +10,7 @@ import 'package:geolocator/geolocator.dart';
 import 'comets.dart';
 import 'models.dart';
 import 'scoring.dart';
+import 'image_pack.dart';
 import 'settings.dart';
 import 'updater.dart';
 
@@ -33,6 +34,9 @@ class AppState extends ChangeNotifier {
 
   /// Aggiornamenti dell'app pubblicati su GitHub.
   final UpdateService updater = UpdateService();
+
+  /// Pacchetto offline delle immagini di repertorio.
+  final ImagePack images = ImagePack();
 
   // ---------------------------------------------------------------- orologio
   // L'ora usata da traiettorie, "Stanotte", comete e vista AR. Di norma è
@@ -83,6 +87,7 @@ class AppState extends ChangeNotifier {
       await recompute();
       unawaited(_initComets());
       unawaited(updater.check(silent: true));
+      unawaited(images.load().then((_) => images.check(silent: true)));
     } catch (e) {
       loadError = 'Non riesco a leggere il catalogo: $e';
       notifyListeners();

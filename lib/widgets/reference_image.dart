@@ -1,72 +1,21 @@
-// Immagine di repertorio di un oggetto, dal Digitized Sky Survey a colori
-// (DSS2, STScI/NASA) ritagliata con il servizio hips2fits del CDS di
-// Strasburgo. Viene scaricata la prima volta e poi conservata sul telefono,
-// così resta disponibile anche senza rete.
+// Immagine di repertorio di un oggetto, letta dal pacchetto offline
+// (vedi image_pack.dart). Se il pacchetto non è ancora sul telefono si
+// propone di scaricarlo.
 
-import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
-import 'package:http/http.dart' as http;
 import 'package:material_ui/material_ui.dart';
-import 'package:path_provider/path_provider.dart';
 
+import '../image_pack.dart';
 import '../models.dart';
 import '../theme.dart';
 
-const int _w = 640, _h = 480;
-
-/// Campo dell'immagine in gradi (sul lato lungo): l'oggetto con un po' di
-/// cielo attorno, oppure tutto il campo del FRA400 con il riduttore.
-double referenceFovDeg(DsObject o, {required bool showFrames}) {
-  if (showFrames) return kFovReducerW / 60.0 * 1.15;
-  final double d = o.major > 0 ? o.major / 60.0 * 1.8 : 0.5;
-  return d.clamp(0.15, 6.0);
-}
-
-Uri referenceImageUrl(DsObject o, double fovDeg, {bool mirror = false}) => Uri.https(
-      mirror ? 'alaskybis.cds.unistra.fr' : 'alasky.cds.unistra.fr',
-      '/hips-image-services/hips2fits',
-      <String, String>{
-        'hips': 'CDS/P/DSS2/color',
-        'width': '$_w',
-        'height': '$_h',
-        'fov': fovDeg.toStringAsFixed(4),
-        'projection': 'TAN',
-        'coordsys': 'icrs',
-        'ra': o.ra.toStringAsFixed(5),
-        'dec': o.dec.toStringAsFixed(5),
-        'format': 'jpg',
-      },
-    );
-
-Future<File> _cachedImage(DsObject o, double fovDeg) async {
-  final Directory base = await getApplicationSupportDirectory();
-  final Directory dir = Directory('${base.path}/repertorio');
-  if (!dir.existsSync()) dir.createSync(recursive: true);
-  final String safe = o.id.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
-  final File f = File('${dir.path}/${safe}_${(fovDeg * 1000).round()}.jpg');
-  if (f.existsSync() && f.lengthSync() > 1000) return f;
-  Object? lastError;
-  for (final bool mirror in <bool>[false, true]) {
-    try {
-      final http.Response r = await http.get(referenceImageUrl(o, fovDeg, mirror: mirror)).timeout(const Duration(seconds: 25));
-      final String type = r.headers['content-type'] ?? '';
-      if (r.statusCode == 200 && type.contains('image') && r.bodyBytes.length > 1000) {
-        await f.writeAsBytes(r.bodyBytes, flush: true);
-        return f;
-      }
-      lastError = 'risposta ${r.statusCode}';
-    } catch (e) {
-      lastError = e;
-    }
-  }
-  throw Exception(lastError ?? 'immagine non disponibile');
-}
-
 class ReferenceImage extends StatefulWidget {
-  const ReferenceImage({super.key, required this.object});
+  const ReferenceImage({super.key, required this.object, required this.pack});
 
   final DsObject object;
+  final ImagePack pack;
 
   @override
   State<ReferenceImage> createState() => _ReferenceImageState();
@@ -74,95 +23,127 @@ class ReferenceImage extends StatefulWidget {
 
 class _ReferenceImageState extends State<ReferenceImage> {
   bool _frames = false;
-  late Future<File> _file = _load();
+  Future<Uint8List?>? _bytes;
+  String? _loadedTag;
 
-  Future<File> _load() => _cachedImage(widget.object, referenceFovDeg(widget.object, showFrames: _frames));
-
-  void _setFrames(bool v) {
-    if (v == _frames) return;
-    setState(() {
-      _frames = v;
-      _file = _load();
-    });
-  }
+  Future<Uint8List?> _load() => widget.pack.imageFor(widget.object.id);
 
   @override
   Widget build(BuildContext context) {
-    final DsObject o = widget.object;
-    final double fov = referenceFovDeg(o, showFrames: _frames);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Center(
-              child: SegmentedButton<bool>(
-                segments: const <ButtonSegment<bool>>[
-                  ButtonSegment<bool>(value: false, label: Text('Oggetto')),
-                  ButtonSegment<bool>(value: true, label: Text('Campo FRA400')),
-                ],
-                selected: <bool>{_frames},
-                showSelectedIcon: false,
-                onSelectionChanged: (Set<bool> s) => _setFrames(s.first),
-              ),
+    return ListenableBuilder(
+      listenable: widget.pack,
+      builder: (BuildContext context, Widget? _) {
+        final ImagePack p = widget.pack;
+        if (!p.installed) return _missingPack(p);
+        if (_bytes == null || _loadedTag != p.installedTag) {
+          _loadedTag = p.installedTag;
+          _bytes = _load();
+        }
+        final PackEntry? e = p.entryFor(widget.object.id);
+        if (e == null) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(14),
+              child: Text('Per questo oggetto le survey disponibili non hanno un\'immagine utilizzabile.',
+                  style: TextStyle(color: AppColors.muted, fontSize: 13)),
             ),
-            const SizedBox(height: 8),
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 560),
-                child: AspectRatio(
-                  aspectRatio: _w / _h,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: FutureBuilder<File>(
-                      future: _file,
-                      builder: (BuildContext context, AsyncSnapshot<File> snap) {
-                        if (snap.connectionState != ConnectionState.done) {
-                          return const ColoredBox(color: AppColors.bg, child: Center(child: CircularProgressIndicator()));
-                        }
-                        if (snap.hasError || snap.data == null) {
-                          return ColoredBox(
-                            color: AppColors.bg,
-                            child: Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: <Widget>[
-                                    const Text('Immagine non disponibile: serve internet la prima volta.',
-                                        textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted, fontSize: 13)),
-                                    TextButton(onPressed: () => setState(() => _file = _load()), child: const Text('Riprova')),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-                        return Stack(
-                          fit: StackFit.expand,
-                          children: <Widget>[
-                            Image.file(snap.data!, fit: BoxFit.cover, semanticLabel: 'Immagine del Digitized Sky Survey di ${o.title}'),
-                            if (_frames) CustomPaint(painter: _FramesOverlay(fovDeg: fov)),
-                          ],
-                        );
-                      },
+          );
+        }
+        // I riquadri del FRA400 hanno senso solo se l'immagine è abbastanza ampia da contenerli almeno in parte.
+        final bool canFrame = e.fovDeg * 60 >= kFovNativeW * 0.6;
+        final bool frames = _frames && canFrame;
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 560),
+                    child: AspectRatio(
+                      aspectRatio: 4 / 3,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: FutureBuilder<Uint8List?>(
+                          future: _bytes,
+                          builder: (BuildContext context, AsyncSnapshot<Uint8List?> snap) {
+                            if (snap.connectionState != ConnectionState.done) {
+                              return const ColoredBox(color: AppColors.bg, child: Center(child: CircularProgressIndicator()));
+                            }
+                            final Uint8List? b = snap.data;
+                            if (b == null) {
+                              return const ColoredBox(
+                                color: AppColors.bg,
+                                child: Center(child: Text('Immagine non leggibile.', style: TextStyle(color: AppColors.muted))),
+                              );
+                            }
+                            return Stack(
+                              fit: StackFit.expand,
+                              children: <Widget>[
+                                Image.memory(b, fit: BoxFit.cover, gaplessPlayback: true, semanticLabel: 'Immagine di repertorio di ${widget.object.title}'),
+                                if (frames) CustomPaint(painter: _FramesOverlay(fovDeg: e.fovDeg)),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
                 ),
+                if (canFrame)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: const Text('Mostra il campo del FRA400', style: TextStyle(fontSize: 13.5)),
+                    subtitle: const Text('400 mm in verde acqua, 280 mm con riduttore in grigio', style: TextStyle(fontSize: 12)),
+                    value: _frames,
+                    onChanged: (bool v) => setState(() => _frames = v),
+                  ),
+                Text(
+                  'Campo di ${e.fovDeg >= 1 ? '${fmt(e.fovDeg, 1)}°' : '${(e.fovDeg * 60).round()}′'} centrato sull\'oggetto. Nord in alto, est a sinistra.',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+                Text(
+                  '${packSourceCredit(e.source)} Immagine fotografica di riferimento, non una ripresa con il tuo setup.',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _missingPack(ImagePack p) {
+    final bool downloading = p.status == PackStatus.downloading;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Text('Le immagini di repertorio si scaricano una volta sola per tutti gli oggetti e poi restano sul telefono, anche senza rete.',
+                style: TextStyle(fontSize: 13.5)),
+            const SizedBox(height: 8),
+            if (downloading) ...<Widget>[
+              LinearProgressIndicator(value: p.progress > 0 ? p.progress : null),
+              const SizedBox(height: 4),
+              Text('Scarico… ${(p.progress * 100).round()}%', style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+            ] else
+              FilledButton.icon(
+                onPressed: p.busy ? null : p.download,
+                icon: const Icon(Icons.download),
+                label: Text(p.available != null && p.available!.binSize > 0
+                    ? 'Scarica le immagini (${fmtMegabytes(p.available!.binSize)})'
+                    : 'Scarica le immagini'),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _frames
-                  ? 'Campo di ${fmt(fov, 1)}° con i riquadri della ASI2600MC: 400 mm (verde acqua) e 280 mm con riduttore (grigio). Nord in alto, est a sinistra.'
-                  : 'Campo di ${fov >= 1 ? '${fmt(fov, 1)}°' : '${(fov * 60).round()}′'} centrato sull\'oggetto. Nord in alto, est a sinistra.',
-              style: const TextStyle(color: AppColors.muted, fontSize: 12),
-            ),
-            const Text(
-              'Digitized Sky Survey (STScI/NASA), colori e ritaglio CDS Strasburgo (hips2fits). Immagine fotografica di riferimento, non una ripresa con il tuo setup.',
-              style: TextStyle(color: AppColors.muted, fontSize: 11),
-            ),
+            if (p.message != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(p.message!, style: TextStyle(color: p.status == PackStatus.error ? AppColors.q2 : AppColors.muted, fontSize: 12.5)),
+              ),
           ],
         ),
       ),
