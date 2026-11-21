@@ -101,7 +101,7 @@ jobs:
             echo "Oggetti con immagine: ${{ steps.pack.outputs.count }} (a colori ${{ steps.pack.outputs.colour }}), ancora mancanti: $MISSING."
             echo
             echo "Fonti: Digitized Sky Survey (STScI/NASA), Pan-STARRS DR1 (STScI/MAST), Milky Way Panorama di Axel Mellinger,"
-            echo "ritagli e colori del CDS di Strasburgo (hips2fits); lastre DSS2 IR, rossa e blu da NASA SkyView, ricomposte a colori."
+            echo "ritagli e colori del CDS di Strasburgo (hips2fits); lastre DSS2 rossa e blu da NASA SkyView, ricomposte a colori."
             echo
             echo '```'
             tail -n 45 out/log.txt

@@ -94,12 +94,12 @@ def http_get(url, timeout=TIMEOUT):
         return r.status, r.read()
 
 
-SKYVIEW_BANDS = ('DSS2 IR', 'DSS2 Red', 'DSS2 Blue')  # diventano R, G, B
+SKYVIEW_BANDS = ('DSS2 Red', 'DSS2 Blue')
 
 
 def stretch(band):
     """Porta ogni lastra sulla stessa scala (fondo cielo scuro, stelle non bruciate),
-    così i tre colori si bilanciano senza dominanti."""
+    così i colori si bilanciano senza dominanti."""
     a = np.asarray(band, dtype=np.float32)
     lo, hi = np.percentile(a, 1.0), np.percentile(a, 99.7)
     if hi - lo < 1:
@@ -108,9 +108,23 @@ def stretch(band):
     return a ** 0.9
 
 
+def colourise(red, blue):
+    """Colore come nelle immagini DSS2 di Aladin: rosso = lastra rossa
+    (dove cade l'H-alfa delle nebulose), blu = lastra blu, verde = media pesata.
+    Le nebulose a emissione vengono arancio/rosse, le stelle calde azzurre."""
+    rgb = np.stack([red, 0.4 * red + 0.6 * blue, blue], axis=-1)
+    med = np.median(rgb.reshape(-1, 3), axis=0)
+    rgb = np.clip(rgb - med + med.mean(), 0, 1)  # fondo cielo neutro
+    lum = rgb.mean(axis=-1, keepdims=True)
+    rgb = np.clip(lum + (rgb - lum) * 1.4, 0, 1)  # un po' di saturazione
+    out = Image.fromarray((rgb * 255 + 0.5).astype(np.uint8), 'RGB')
+    o = io.BytesIO()
+    out.save(o, 'JPEG', quality=95)
+    return o.getvalue()
+
+
 def fetch_rgb(ra, dec, fov):
-    """Immagine a colori ricomposta dalle tre lastre DSS2 di NASA SkyView
-    (infrarosso → rosso, rosso → verde, blu → blu)."""
+    """Immagine a colori ricomposta dalle lastre DSS2 rossa e blu di NASA SkyView."""
     chans = []
     for band in SKYVIEW_BANDS:
         data = fetch('skyview', ra, dec, fov, survey=band)
@@ -118,18 +132,21 @@ def fetch_rgb(ra, dec, fov):
         if img.size != (W, H):
             img = img.resize((W, H), Image.LANCZOS)
         chans.append(stretch(img))
-    rgb = np.stack(chans, axis=-1)
-    # Bilancia il fondo cielo: la mediana di ogni canale va allo stesso livello.
-    med = np.median(rgb.reshape(-1, 3), axis=0)
-    rgb = np.clip(rgb - med + med.mean(), 0, 1)
-    out = Image.fromarray((rgb * 255 + 0.5).astype(np.uint8), 'RGB')
+    return colourise(*chans)
+
+
+def recolour_old(data):
+    """Le immagini della prima versione a colori avevano nei canali
+    (IR, rosso, blu): si rifanno con i colori nuovi senza riscaricarle."""
+    a = np.asarray(Image.open(io.BytesIO(data)).convert('RGB'), dtype=np.float32) / 255.0
+    out = Image.open(io.BytesIO(colourise(a[..., 1], a[..., 2])))
     o = io.BytesIO()
-    out.save(o, 'JPEG', quality=95)
+    out.save(o, 'JPEG', quality=QUALITY, optimize=True, progressive=True)
     return o.getvalue()
 
 
 def fetch(key, ra, dec, fov, survey='DSS2 Red'):
-    if key == 'skyview_rgb':
+    if key == 'dss2rgb':
         return fetch_rgb(ra, dec, fov)
     if key == 'skyview':
         # NASA SkyView: una lastra DSS2 in bianco e nero.
@@ -168,7 +185,7 @@ def make(obj):
     fov = fov_deg(obj.get('D') or 0)
     errors = []
     # Prima i colori da SkyView (da GitHub risponde bene), poi il CDS, poi il bianco e nero.
-    for key in ['skyview_rgb'] + source_order(fov, obj['de']) + ['skyview']:
+    for key in ['dss2rgb'] + source_order(fov, obj['de']) + ['skyview']:
         if not HEALTH.ok(key):
             errors.append(f'{key}: in pausa')
             continue
@@ -208,6 +225,17 @@ def main():
 
     meta_path = cache / 'meta.json'
     meta = json.load(open(meta_path)) if meta_path.exists() else {}
+    # Ricolora le immagini della prima versione a colori (canali IR/rosso/blu).
+    redone = 0
+    for oid, m in list(meta.items()):
+        p = cache / f'{safe(oid)}.jpg'
+        if m[1] == 'skyview_rgb' and p.exists():
+            p.write_bytes(recolour_old(p.read_bytes()))
+            meta[oid] = [m[0], 'dss2rgb']
+            redone += 1
+    if redone:
+        json.dump(meta, open(meta_path, 'w'))
+        print(f'{redone} immagini ricolorate senza riscaricarle', flush=True)
     # Da scaricare: quelle che mancano e quelle in bianco e nero (si prova a farle a colori).
     todo = [o for o in objs if not (o['i'] in meta and meta[o['i']][1] != 'skyview'
                                     and (cache / f"{safe(o['i'])}.jpg").exists())]
@@ -215,7 +243,7 @@ def main():
 
     t0 = time.time()
     # Prova iniziale, così il log dice subito se le fonti rispondono.
-    for key in ('skyview_rgb', 'dss2'):
+    for key in ('dss2rgb', 'dss2'):
         t = time.time()
         try:
             fetch(key, 83.822, -5.391, 1.0)

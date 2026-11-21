@@ -27,8 +27,9 @@ String packSourceCredit(String source) {
   switch (source) {
     case 'panstarrs':
       return 'Pan-STARRS DR1 (STScI/MAST), ritaglio CDS Strasburgo.';
+    case 'dss2rgb':
     case 'skyview_rgb':
-      return 'Digitized Sky Survey 2 (STScI/NASA), lastre infrarossa, rossa e blu ricomposte a colori, tramite NASA SkyView.';
+      return 'Digitized Sky Survey 2 (STScI/NASA), lastre rossa e blu ricomposte a colori, tramite NASA SkyView.';
     case 'skyview':
       return 'Digitized Sky Survey 2, rosso (STScI/NASA), tramite NASA SkyView.';
     case 'mellinger':
