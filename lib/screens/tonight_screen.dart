@@ -40,6 +40,7 @@ class _TonightScreenState extends State<TonightScreen> {
   late DateTime _day = tonightDate(widget.state.now());
   late int _clockSeen = widget.state.clockVersion;
   double _minScore = 6;
+  final CatalogFilters _f = CatalogFilters();
   String? _key;
   bool _busy = false;
   NightResult? _result;
@@ -72,7 +73,7 @@ class _TonightScreenState extends State<TonightScreen> {
     for (final DsObject o in st.objects) {
       final int k = o.index * NightResult.stride;
       final double hours = r.values[k];
-      if (hours < 0.5 || st.scoreOf(o) < _minScore) continue;
+      if (hours < 0.5 || st.scoreOf(o) < _minScore || !_f.accepts(st, o)) continue;
       out.add(_Entry(
         o,
         hours,
@@ -84,10 +85,19 @@ class _TonightScreenState extends State<TonightScreen> {
         r.values[k + 6],
       ));
     }
-    out.sort((_Entry a, _Entry b) {
-      final int c = st.scoreOf(b.object).compareTo(st.scoreOf(a.object));
-      return c != 0 ? c : b.hours.compareTo(a.hours);
-    });
+    switch (_f.sort) {
+      case 'start':
+        out.sort((_Entry a, _Entry b) => a.start.compareTo(b.start));
+      case 'hours':
+        out.sort((_Entry a, _Entry b) => b.hours.compareTo(a.hours));
+      case 'name':
+        out.sort((_Entry a, _Entry b) => a.object.id.compareTo(b.object.id));
+      default:
+        out.sort((_Entry a, _Entry b) {
+          final int c = st.scoreOf(b.object).compareTo(st.scoreOf(a.object));
+          return c != 0 ? c : b.hours.compareTo(a.hours);
+        });
+    }
     return out;
   }
 
@@ -151,6 +161,26 @@ class _TonightScreenState extends State<TonightScreen> {
                         showSelectedIcon: false,
                         onSelectionChanged: (Set<double> s) => setState(() => _minScore = s.first),
                       ),
+                      ListenableBuilder(
+                        listenable: st.lists,
+                        builder: (BuildContext context, Widget? _) => OutlinedButton.icon(
+                          onPressed: () => showFiltersSheet(
+                            context,
+                            f: _f,
+                            onChanged: () => setState(() {}),
+                            showMonth: false,
+                            showMinScore: false,
+                            sortOptions: const <String, String>{
+                              'score': 'Punteggio',
+                              'start': 'Ora di ingresso nella finestra',
+                              'hours': 'Ore utili',
+                              'name': 'Sigla',
+                            },
+                          ),
+                          icon: const Icon(Icons.filter_list),
+                          label: Text(_f.activeCount == 0 ? 'Filtri' : 'Filtri · ${_f.activeCount}'),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -170,7 +200,7 @@ class _TonightScreenState extends State<TonightScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(24),
                         child: Text(
-                          stale ? '' : 'Nessun oggetto con questo punteggio entra nella finestra utile in questa notte.',
+                          stale ? '' : _f.activeCount > 0 ? 'Nessun oggetto con questi filtri entra nella finestra utile in questa notte.' : 'Nessun oggetto con questo punteggio entra nella finestra utile in questa notte.',
                           textAlign: TextAlign.center,
                           style: const TextStyle(color: AppColors.muted),
                         ),

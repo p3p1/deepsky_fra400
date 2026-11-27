@@ -30,6 +30,17 @@ if 'android:label="deepsky_fra400"' in text:
     text = text.replace('android:label="deepsky_fra400"', 'android:label="Deep Sky FRA400"', 1)
 else:
     print('Attenzione: etichetta dell\'app non trovata, resta il nome predefinito')
+# Android 11+: per aprire i link (Wikipedia, SIMBAD...) nel browser.
+view_https = '''        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+'''
+if 'android.intent.action.VIEW' not in text:
+    if '<queries>' in text:
+        text = text.replace('<queries>', '<queries>\n' + view_https, 1)
+    else:
+        text = text.replace('</manifest>', '    <queries>\n' + view_https + '    </queries>\n</manifest>', 1)
 path.write_text(text, encoding='utf-8')
 print('AndroidManifest.xml aggiornato')
 

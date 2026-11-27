@@ -4,12 +4,14 @@
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../app_state.dart';
 import '../details.dart';
 import '../lists.dart';
 import '../models.dart';
 import '../theme.dart';
+import '../widgets/framing_view.dart';
 import '../widgets/reference_image.dart';
 import 'trajectory_view.dart';
 
@@ -73,46 +75,6 @@ class _MonthPainter extends CustomPainter {
   bool shouldRepaint(_MonthPainter old) => old.hours != hours || old.threshold != threshold;
 }
 
-/// Oggetto e campi inquadrati (nativo e con riduttore), in scala.
-class _FramePainter extends CustomPainter {
-  _FramePainter(this.major, this.minor);
-  final double major;
-  final double minor;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double span = math.max(kFovReducerW, major) * 1.12;
-    final double k = size.width / span;
-    final Offset c = size.center(Offset.zero);
-    void frame(double w, double h, Color color) {
-      canvas.drawRect(
-        Rect.fromCenter(center: c, width: w * k, height: h * k),
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5,
-      );
-    }
-
-    frame(kFovReducerW, kFovReducerH, AppColors.muted);
-    frame(kFovNativeW, kFovNativeH, AppColors.accent);
-    if (major > 0) {
-      final double d = minor > 0 ? minor : major;
-      final Rect r = Rect.fromCenter(center: c, width: math.max(3, major * k), height: math.max(3, d * k));
-      canvas.drawOval(r, Paint()..color = AppColors.ha.withValues(alpha: 0.22));
-      canvas.drawOval(
-        r,
-        Paint()
-          ..color = AppColors.ha
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_FramePainter old) => old.major != major || old.minor != minor;
-}
 
 class ObjectDetail extends StatefulWidget {
   const ObjectDetail({super.key, required this.state, required this.object, this.initialDay, this.startOnTrack = false});
@@ -222,6 +184,8 @@ class _ObjectDetailState extends State<ObjectDetail> {
         ReferenceImage(key: ValueKey<String>('img-${o.id}'), object: o, pack: st.images),
         _section('L\'oggetto'),
         _AboutObject(object: o, details: st.details.of(o.id)),
+        _section('Approfondisci'),
+        _SourceLinks(object: o, details: st.details.of(o.id)),
         _section('Inquadratura in scala'),
         Card(
           child: Padding(
@@ -229,28 +193,9 @@ class _ObjectDetailState extends State<ObjectDetail> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 360),
-                    child: AspectRatio(
-                      aspectRatio: 300 / 210,
-                      child: Semantics(
-                        label: 'Schema in scala: oggetto, campo a 400 millimetri e campo con riduttore',
-                        child: CustomPaint(painter: _FramePainter(o.major, o.minor), size: Size.infinite),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Wrap(spacing: 14, children: <Widget>[
-                  _Legend(color: AppColors.ha, text: 'Oggetto'),
-                  _Legend(color: AppColors.accent, text: '400 mm'),
-                  _Legend(color: AppColors.muted, text: '280 mm (riduttore)'),
-                ]),
+                FramingView(key: ValueKey<String>('frame-${o.id}'), object: o),
                 const SizedBox(height: 6),
                 Text(o.cfgLong, style: const TextStyle(fontSize: 13.5)),
-                const Text('Lo schema non rappresenta l\'orientamento reale dell\'oggetto.',
-                    style: TextStyle(color: AppColors.muted, fontSize: 12)),
               ],
             ),
           ),
@@ -338,23 +283,6 @@ class _ObjectDetailState extends State<ObjectDetail> {
   }
 }
 
-class _Legend extends StatelessWidget {
-  const _Legend({required this.color, required this.text});
-  final Color color;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Container(width: 14, height: 2, color: color),
-        const SizedBox(width: 5),
-        Text(text, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-      ],
-    );
-  }
-}
 
 /// Descrizione scientifica: che cos'è, dove si trova, quanto è lontano e grande.
 class _AboutObject extends StatefulWidget {
@@ -483,6 +411,57 @@ class _AboutObjectState extends State<_AboutObject> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Collegamenti a fonti esterne sull'oggetto (si aprono nel browser).
+class _SourceLinks extends StatelessWidget {
+  const _SourceLinks({required this.object, required this.details});
+
+  final DsObject object;
+  final ObjectDetails? details;
+
+  @override
+  Widget build(BuildContext context) {
+    final DsObject o = object;
+    final ObjectDetails? d = details;
+    final String id = Uri.encodeQueryComponent(o.id);
+    final double fov = math.max(0.25, math.min(10, (o.major > 0 ? o.major : 20) / 60 * 2.5));
+    final List<(IconData, String, String, String)> links = <(IconData, String, String, String)>[
+      if (d?.wikiTitle != null)
+        (Icons.menu_book, 'Wikipedia', 'voce in italiano', 'https://it.wikipedia.org/wiki/${Uri.encodeComponent(d!.wikiTitle!.replaceAll(' ', '_'))}')
+      else
+        (Icons.menu_book, 'Wikipedia', 'cerca in italiano', 'https://it.wikipedia.org/w/index.php?search=$id'),
+      (Icons.language, 'Wikipedia (inglese)', 'spesso più completa', 'https://en.wikipedia.org/w/index.php?search=$id'),
+      (Icons.science_outlined, 'SIMBAD', 'banca dati del CDS: misure, bibliografia', 'https://simbad.cds.unistra.fr/simbad/sim-id?Ident=$id'),
+      (Icons.travel_explore, 'Aladin Lite', 'atlante del cielo interattivo, molte survey',
+          'https://aladin.cds.unistra.fr/AladinLite/?target=${o.ra.toStringAsFixed(4)}%20${o.dec >= 0 ? '%2B' : ''}${o.dec.toStringAsFixed(4)}&fov=${fov.toStringAsFixed(2)}&survey=CDS%2FP%2FDSS2%2Fcolor'),
+      if (o.type == 'GAL') (Icons.blur_circular, 'NED', 'database extragalattico NASA/IPAC', 'https://ned.ipac.caltech.edu/byname?objname=$id'),
+      if (d?.wikidata != null) (Icons.hub_outlined, 'Wikidata', 'dati strutturati e fonti', 'https://www.wikidata.org/wiki/${d!.wikidata}'),
+    ];
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: <Widget>[
+          for (final (IconData icon, String title, String sub, String url) in links)
+            ListTile(
+              leading: Icon(icon, color: AppColors.accent),
+              title: Text(title),
+              subtitle: Text(sub, style: const TextStyle(fontSize: 12.5)),
+              trailing: const Icon(Icons.open_in_new, size: 18),
+              onTap: () async {
+                bool ok = false;
+                try {
+                  ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                } catch (_) {}
+                if (!ok && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Non riesco ad aprire il link: serve un browser e la rete.')));
+                }
+              },
+            ),
+        ],
       ),
     );
   }

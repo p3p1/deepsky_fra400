@@ -17,10 +17,160 @@ class CatalogFilters {
   int? month; // 0..11
   double minScore = 0;
   bool fullOnly = false;
+  String list = ''; // '', oppure l'id di una lista personale
   String sort = 'score';
 
   int get activeCount =>
-      types.length + (filter.isEmpty ? 0 : 1) + (cfg.isEmpty ? 0 : 1) + (month == null ? 0 : 1) + (minScore > 0 ? 1 : 0) + (fullOnly ? 1 : 0);
+      types.length +
+      (filter.isEmpty ? 0 : 1) +
+      (cfg.isEmpty ? 0 : 1) +
+      (month == null ? 0 : 1) +
+      (minScore > 0 ? 1 : 0) +
+      (fullOnly ? 1 : 0) +
+      (list.isEmpty ? 0 : 1);
+
+  /// Vero se l'oggetto passa i filtri (la ricerca testuale è a parte).
+  bool accepts(AppState st, DsObject o) {
+    if (types.isNotEmpty && !types.contains(o.type)) return false;
+    if (filter.isNotEmpty && !o.info.filter.contains(filter)) return false;
+    if (cfg.isNotEmpty && o.cfgGroup != cfg) return false;
+    if (month != null && st.monthsOf(o)[month!] < st.settings.monthThreshold) return false;
+    if (st.scoreOf(o) < minScore) return false;
+    if (fullOnly && o.partialData) return false;
+    if (list.isNotEmpty && !st.lists.contains(list, o.id)) return false;
+    return true;
+  }
+
+  void reset() {
+    types.clear();
+    filter = '';
+    cfg = '';
+    month = null;
+    minScore = 0;
+    fullOnly = false;
+    list = '';
+  }
+}
+
+Widget _filterDropdown<T>(String label, T value, Map<T, String> options, void Function(T value) onChanged) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: DropdownButtonFormField<T>(
+      key: ValueKey<String>('$label-$value'),
+      initialValue: value,
+      decoration: InputDecoration(labelText: label, isDense: true),
+      items: <DropdownMenuItem<T>>[
+        for (final MapEntry<T, String> e in options.entries) DropdownMenuItem<T>(value: e.key, child: Text(e.value)),
+      ],
+      onChanged: (T? v) {
+        if (v != null) onChanged(v);
+      },
+    ),
+  );
+}
+
+/// Pannello dei filtri, usato dal catalogo e da «Stanotte».
+Future<void> showFiltersSheet(
+  BuildContext context, {
+  required CatalogFilters f,
+  required VoidCallback onChanged,
+  required Map<String, String> sortOptions,
+  bool showMonth = true,
+  bool showMinScore = true,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (BuildContext context) {
+      return StatefulBuilder(builder: (BuildContext context, StateSetter setSheet) {
+        void update(VoidCallback change) {
+          setSheet(change);
+          onChanged();
+        }
+
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.viewInsetsOf(context).bottom),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    const Expanded(child: Text('Filtri', style: TextStyle(fontSize: 20))),
+                    if (f.activeCount > 0) TextButton(onPressed: () => update(f.reset), child: const Text('Azzera')),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text('Tipo di oggetto', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 2,
+                  children: <Widget>[
+                    for (final TypeInfo t in kTypes)
+                      FilterChip(
+                        label: Text(t.plural),
+                        selected: f.types.contains(t.code),
+                        onSelected: (bool on) => update(() => on ? f.types.add(t.code) : f.types.remove(t.code)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text('Lista personale', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 2,
+                  children: <Widget>[
+                    for (final ObjectListKind k in kObjectLists)
+                      FilterChip(
+                        avatar: Icon(k.icon, size: 18, color: k.color),
+                        label: Text(k.name),
+                        selected: f.list == k.id,
+                        onSelected: (bool on) => update(() => f.list = on ? k.id : ''),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _filterDropdown<String>('Filtro', f.filter, const <String, String>{'': 'Tutti', 'S': 'S200 dual-band', 'U': 'UV/IR-cut (banda larga)'},
+                    (String v) => update(() => f.filter = v)),
+                _filterDropdown<String>('Inquadratura', f.cfg, const <String, String>{'': 'Tutte', 'N': 'Nativo 400 mm', 'R': 'Riduttore 280 mm', 'M': 'Mosaico'},
+                    (String v) => update(() => f.cfg = v)),
+                if (showMonth)
+                  _filterDropdown<int>(
+                    'Mese utile',
+                    f.month ?? -1,
+                    <int, String>{-1: 'Qualsiasi', for (int m = 0; m < 12; m++) m: kMonthsLong[m]},
+                    (int v) => update(() => f.month = v < 0 ? null : v),
+                  ),
+                _filterDropdown<String>('Ordina per', f.sort, sortOptions, (String v) => update(() => f.sort = v)),
+                if (showMinScore) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Text('Punteggio minimo: ${f.minScore.round()}', style: const TextStyle(fontSize: 13.5)),
+                  Slider(
+                    value: f.minScore,
+                    min: 0,
+                    max: 9,
+                    divisions: 9,
+                    label: '${f.minScore.round()}',
+                    onChanged: (double v) => update(() => f.minScore = v),
+                  ),
+                ],
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Solo oggetti con dati completi'),
+                  value: f.fullOnly,
+                  onChanged: (bool v) => update(() => f.fullOnly = v),
+                ),
+              ],
+            ),
+          ),
+        );
+      });
+    },
+  );
 }
 
 /// Selettore del sito attivo, condiviso da più schermate.
@@ -134,16 +284,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
   List<DsObject> _apply() {
     final AppState st = widget.state;
-    final double thr = st.settings.monthThreshold;
-    final List<DsObject> out = st.objects.where((DsObject o) {
-      if (_f.types.isNotEmpty && !_f.types.contains(o.type)) return false;
-      if (_f.filter.isNotEmpty && !o.info.filter.contains(_f.filter)) return false;
-      if (_f.cfg.isNotEmpty && o.cfgGroup != _f.cfg) return false;
-      if (_f.month != null && st.monthsOf(o)[_f.month!] < thr) return false;
-      if (st.scoreOf(o) < _f.minScore) return false;
-      if (_f.fullOnly && o.partialData) return false;
-      return o.matches(_f.query);
-    }).toList();
+    final List<DsObject> out = st.objects.where((DsObject o) => _f.accepts(st, o) && o.matches(_f.query)).toList();
     switch (_f.sort) {
       case 'name':
         out.sort((DsObject a, DsObject b) => a.id.compareTo(b.id));
@@ -160,96 +301,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
     return out;
   }
 
-  Future<void> _openFilters() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (BuildContext context) {
-        return StatefulBuilder(builder: (BuildContext context, StateSetter setSheet) {
-          void update(VoidCallback change) {
-            setSheet(change);
-            setState(() {});
-          }
-
-          return SafeArea(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.viewInsetsOf(context).bottom),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  const Text('Tipo di oggetto', style: TextStyle(color: AppColors.muted, fontSize: 12)),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 2,
-                    children: <Widget>[
-                      for (final TypeInfo t in kTypes)
-                        FilterChip(
-                          label: Text(t.plural),
-                          selected: _f.types.contains(t.code),
-                          onSelected: (bool on) => update(() => on ? _f.types.add(t.code) : _f.types.remove(t.code)),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _dropdown<String>('Filtro', _f.filter, const <String, String>{'': 'Tutti', 'S': 'S200 dual-band', 'U': 'UV/IR-cut (banda larga)'},
-                      (String v) => update(() => _f.filter = v)),
-                  _dropdown<String>('Inquadratura', _f.cfg, const <String, String>{'': 'Tutte', 'N': 'Nativo 400 mm', 'R': 'Riduttore 280 mm', 'M': 'Mosaico'},
-                      (String v) => update(() => _f.cfg = v)),
-                  _dropdown<int>(
-                    'Mese utile',
-                    _f.month ?? -1,
-                    <int, String>{-1: 'Qualsiasi', for (int m = 0; m < 12; m++) m: kMonthsLong[m]},
-                    (int v) => update(() => _f.month = v < 0 ? null : v),
-                  ),
-                  _dropdown<String>(
-                    'Ordina per',
-                    _f.sort,
-                    const <String, String>{'score': 'Punteggio', 'name': 'Sigla', 'size': 'Dimensione', 'ra': 'Ascensione retta'},
-                    (String v) => update(() => _f.sort = v),
-                  ),
-                  const SizedBox(height: 8),
-                  Text('Punteggio minimo: ${_f.minScore.round()}', style: const TextStyle(fontSize: 13.5)),
-                  Slider(
-                    value: _f.minScore,
-                    min: 0,
-                    max: 9,
-                    divisions: 9,
-                    label: '${_f.minScore.round()}',
-                    onChanged: (double v) => update(() => _f.minScore = v),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Solo oggetti con dati completi'),
-                    value: _f.fullOnly,
-                    onChanged: (bool v) => update(() => _f.fullOnly = v),
-                  ),
-                ],
-              ),
-            ),
-          );
-        });
-      },
-    );
-  }
-
-  Widget _dropdown<T>(String label, T value, Map<T, String> options, void Function(T value) onChanged) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: DropdownButtonFormField<T>(
-        initialValue: value,
-        decoration: InputDecoration(labelText: label, isDense: true),
-        items: <DropdownMenuItem<T>>[
-          for (final MapEntry<T, String> e in options.entries) DropdownMenuItem<T>(value: e.key, child: Text(e.value)),
-        ],
-        onChanged: (T? v) {
-          if (v != null) onChanged(v);
-        },
-      ),
-    );
-  }
+  Future<void> _openFilters() => showFiltersSheet(
+        context,
+        f: _f,
+        onChanged: () => setState(() {}),
+        sortOptions: const <String, String>{'score': 'Punteggio', 'name': 'Sigla', 'size': 'Dimensione', 'ra': 'Ascensione retta'},
+      );
 
   @override
   Widget build(BuildContext context) {
