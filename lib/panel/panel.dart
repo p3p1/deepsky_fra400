@@ -9,6 +9,8 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../theme.dart';
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 const kServiceUUID        = "12345678-1234-1234-1234-123456789abc";
 const kCharacteristicUUID = "87654321-4321-4321-4321-cba987654321";
@@ -34,17 +36,12 @@ class LightConfig {
 const kConfigs = [
   LightConfig(0, "Spento",   "0",   "—",     Color(0xFF444455)),
   LightConfig(1, "Config 1", "55",  "Basso", Color(0xFF4A90D9)),
-  LightConfig(2, "Config 2", "130", "Medio", Color(0xFFFFB84D)),
-  LightConfig(3, "Config 3", "255", "Alto",  Color(0xFFFF6B6B)),
+  LightConfig(2, "Config 2", "130", "Medio", AppColors.amber),
+  LightConfig(3, "Config 3", "255", "Alto",  AppColors.q2),
 ];
 
-/// Tema originale dell'app del pannello, applicato solo alla sua sezione.
-ThemeData panelTheme() => ThemeData(
-      colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF7B68EE), secondary: Color(0xFFFFD700), surface: Color(0xFF000000)),
-      scaffoldBackgroundColor: const Color(0xFF000000),
-      useMaterial3: true,
-    );
+/// Stesso tema Material 3 su nero del resto dell'app.
+ThemeData panelTheme() => buildTheme();
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BleManager con riconnessione automatica
@@ -403,9 +400,9 @@ class _PanelPageState extends State<PanelPage> with WidgetsBindingObserver {
         const SafeArea(
           bottom: false,
           child: TabBar(
-            indicatorColor: Color(0xFF7B68EE),
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white54,
+            indicatorColor: AppColors.accent,
+            labelColor: AppColors.ink,
+            unselectedLabelColor: AppColors.muted,
             tabs: [
               Tab(icon: Icon(Icons.tune), text: "Controllo"),
               Tab(icon: Icon(Icons.timer_outlined), text: "Sessione"),
@@ -469,7 +466,7 @@ class ControlTab extends StatelessWidget {
               onPressed: ble.disconnect,
               icon: const Icon(Icons.bluetooth_disabled, size: 16),
               label: const Text("Disconnetti"),
-              style: TextButton.styleFrom(foregroundColor: Colors.white24))),
+              style: TextButton.styleFrom(foregroundColor: AppColors.outline))),
           ] else
             _connectSection(),
         ]),
@@ -481,23 +478,23 @@ class ControlTab extends StatelessWidget {
     const Text("🔭", style: TextStyle(fontSize: 28)),
     const SizedBox(width: 10),
     const Expanded(child: Text("WandererCover",
-      style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
+      style: TextStyle(color: AppColors.ink, fontSize: 22, fontWeight: FontWeight.bold))),
     // Menu discreto per "dimentica dispositivo" (solo se connesso)
     if (ble.connected.value)
       PopupMenuButton<String>(
-        icon: const Icon(Icons.more_vert, size: 20, color: Colors.white38),
-        color: const Color(0xFF1A1A2E),
+        icon: const Icon(Icons.more_vert, size: 20, color: AppColors.muted),
+        color: AppColors.surface,
         onSelected: (v) async {
           if (v == 'forget') {
             final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-              backgroundColor: const Color(0xFF1A1A2E),
-              title: const Text("Dimentica dispositivo", style: TextStyle(color: Colors.white)),
+              backgroundColor: AppColors.surface,
+              title: const Text("Dimentica dispositivo", style: TextStyle(color: AppColors.ink)),
               content: const Text("La prossima volta dovrai cercarlo manualmente.",
-                style: TextStyle(color: Colors.white54)),
+                style: TextStyle(color: AppColors.muted)),
               actions: [
                 TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Annulla")),
                 TextButton(onPressed: () => Navigator.pop(context, true),
-                  child: const Text("Dimentica", style: TextStyle(color: Color(0xFFFF6B6B)))),
+                  child: const Text("Dimentica", style: TextStyle(color: AppColors.q2))),
               ],
             ));
             if (ok == true) await ble.forget();
@@ -505,7 +502,7 @@ class ControlTab extends StatelessWidget {
         },
         itemBuilder: (_) => [
           const PopupMenuItem(value: 'forget',
-            child: Text("Dimentica dispositivo", style: TextStyle(color: Colors.white70))),
+            child: Text("Dimentica dispositivo", style: TextStyle(color: AppColors.muted))),
         ],
       ),
   ]);
@@ -519,21 +516,21 @@ class ControlTab extends StatelessWidget {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: const Color(0xFF141420), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: AppColors.surfaceHigh, borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (ble.discoveredProps.value.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(ble.discoveredProps.value,
-                style: const TextStyle(color: Color(0xFFFFD700), fontSize: 10, fontFamily: 'monospace')),
+                style: const TextStyle(color: AppColors.amber, fontSize: 10, fontFamily: 'monospace')),
             ),
           Row(children: [
-            const Icon(Icons.bug_report_outlined, size: 14, color: Colors.white24),
+            const Icon(Icons.bug_report_outlined, size: 14, color: AppColors.outline),
             const SizedBox(width: 8),
             Expanded(child: Text(
               ble.debugInfo.value.isEmpty ? "tocca per leggere lo stato ora" : ble.debugInfo.value,
-              style: const TextStyle(color: Colors.white38, fontSize: 10, fontFamily: 'monospace'))),
-            const Icon(Icons.refresh, size: 14, color: Colors.white24),
+              style: const TextStyle(color: AppColors.muted, fontSize: 10, fontFamily: 'monospace'))),
+            const Icon(Icons.refresh, size: 14, color: AppColors.outline),
           ]),
         ]),
       ),
@@ -546,8 +543,8 @@ class ControlTab extends StatelessWidget {
       final isBusy = ble.busy.value;
       final isAuto = ble.autoReconnecting.value;
       final conn = ble.connected.value;
-      final color = conn ? (isBusy ? const Color(0xFFFFD700) : const Color(0xFF4CAF50))
-          : isAuto ? const Color(0xFF7B68EE) : Colors.white38;
+      final color = conn ? (isBusy ? AppColors.amber : AppColors.q5)
+          : isAuto ? AppColors.accent : AppColors.muted;
       // Messaggio dinamico in base alla fase
       String msg = ble.status.value;
       if (ble.phase.value == "arming") msg = "⏳ Attendo standby (13-15s)...";
@@ -555,17 +552,17 @@ class ControlTab extends StatelessWidget {
       else if (ble.phase.value == "stepping") msg = "🔄 Config — taglio veloce ${ble.stepInfo.value}";
       return Container(
         width: double.infinity, padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: const Color(0xFF1A1A2E),
+        decoration: BoxDecoration(color: AppColors.surface,
           borderRadius: BorderRadius.circular(14), border: Border.all(color: color.withValues(alpha: 0.35))),
         child: Row(children: [
           if (isAuto) const SizedBox(width: 10, height: 10,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7B68EE)))
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent))
           else Container(width: 10, height: 10, decoration: BoxDecoration(shape: BoxShape.circle, color: color,
             boxShadow: conn ? [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 6)] : [])),
           const SizedBox(width: 10),
           Expanded(child: Text(msg, style: TextStyle(color: color, fontSize: 14))),
           if (isBusy) const SizedBox(width: 18, height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFD700))),
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.amber)),
         ]),
       );
     },
@@ -582,34 +579,34 @@ class ControlTab extends StatelessWidget {
           duration: const Duration(milliseconds: 300),
           width: double.infinity, padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: pending ? const Color(0xFF7B68EE).withValues(alpha: 0.25)
-                 : open ? const Color(0xFF7B68EE).withValues(alpha: 0.12) : const Color(0xFF1A1A2E),
+            color: pending ? AppColors.accent.withValues(alpha: 0.25)
+                 : open ? AppColors.accent.withValues(alpha: 0.12) : AppColors.surface,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: pending ? const Color(0xFF7B68EE)
-                   : open ? const Color(0xFF7B68EE) : Colors.white12,
+              color: pending ? AppColors.accent
+                   : open ? AppColors.accent : AppColors.line,
               width: (pending || open) ? 2.5 : 1),
-            boxShadow: pending ? [BoxShadow(color: const Color(0xFF7B68EE).withValues(alpha: 0.4), blurRadius: 14, spreadRadius: 1)] : []),
+            boxShadow: pending ? [BoxShadow(color: AppColors.accent.withValues(alpha: 0.4), blurRadius: 14, spreadRadius: 1)] : []),
           child: Column(children: [
             if (pending) ...[
               const SizedBox(width: 28, height: 28,
-                child: CircularProgressIndicator(strokeWidth: 3, color: Color(0xFF7B68EE))),
+                child: CircularProgressIndicator(strokeWidth: 3, color: AppColors.accent)),
               const SizedBox(height: 14),
               const Text("COMANDO INVIATO",
-                style: TextStyle(color: Color(0xFF7B68EE), fontSize: 16, fontWeight: FontWeight.bold)),
+                style: TextStyle(color: AppColors.accent, fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
               Text(open ? "Chiusura in corso..." : "Apertura in corso...",
-                style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                style: const TextStyle(color: AppColors.muted, fontSize: 12)),
             ] else ...[
               Icon(open ? Icons.flip_to_front : Icons.flip_to_back,
-                size: 48, color: open ? const Color(0xFF7B68EE) : Colors.white38),
+                size: 48, color: open ? AppColors.accent : AppColors.muted),
               const SizedBox(height: 12),
               Text(open ? "COVER APERTO" : "COVER CHIUSO",
-                style: TextStyle(color: open ? const Color(0xFF7B68EE) : Colors.white70,
+                style: TextStyle(color: open ? AppColors.accent : AppColors.muted,
                   fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
               Text("Tocca per ${open ? 'chiudere' : 'aprire'} (taglio 2.3s)",
-                style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                style: const TextStyle(color: AppColors.muted, fontSize: 12)),
             ],
           ]),
         ),
@@ -625,7 +622,7 @@ class ControlTab extends StatelessWidget {
       final active = ble.lastSelected.value >= 0 ? ble.lastSelected.value : ble.configIndex.value;
       final isBusy = ble.busy.value;
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text("CONFIGURAZIONE LUCE", style: TextStyle(color: Colors.white38, fontSize: 11, letterSpacing: 1.2)),
+        const Text("CONFIGURAZIONE LUCE", style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 1.2)),
         const SizedBox(height: 12),
         ...kConfigs.map((c) {
           final isActive = c.index == active;
@@ -638,9 +635,9 @@ class ControlTab extends StatelessWidget {
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                 decoration: BoxDecoration(
-                  color: isActive ? c.color.withValues(alpha: 0.22) : const Color(0xFF1A1A2E),
+                  color: isActive ? c.color.withValues(alpha: 0.22) : AppColors.surface,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: isActive ? c.color : Colors.white12, width: isActive ? 2.5 : 1),
+                  border: Border.all(color: isActive ? c.color : AppColors.line, width: isActive ? 2.5 : 1),
                   boxShadow: isActive
                       ? [BoxShadow(color: c.color.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 1)] : []),
                 child: Row(children: [
@@ -652,7 +649,7 @@ class ControlTab extends StatelessWidget {
                   const SizedBox(width: 16),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Text(c.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                      Text(c.name, style: const TextStyle(color: AppColors.ink, fontSize: 16, fontWeight: FontWeight.w600)),
                       if (isActive) ...[
                         const SizedBox(width: 8),
                         Container(
@@ -665,13 +662,13 @@ class ControlTab extends StatelessWidget {
                     ]),
                     const SizedBox(height: 2),
                     Text(c.index == 0 ? "Luce spenta" : "Luminosità ${c.brightness} · Heater ${c.heater}",
-                      style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                      style: const TextStyle(color: AppColors.muted, fontSize: 12)),
                   ])),
                   if (isActive && isBusy)
-                    const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent))
                   else if (isActive)
                     Icon(Icons.check_circle, color: c.color, size: 24)
-                  else const Icon(Icons.chevron_right, color: Colors.white24),
+                  else const Icon(Icons.chevron_right, color: AppColors.outline),
                 ]),
               ),
             ),
@@ -680,10 +677,10 @@ class ControlTab extends StatelessWidget {
         const SizedBox(height: 4),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10)),
           child: const Text(
             "💡 Le config sono i preset 1-2-3 di WandererEmpire. Ogni selezione fa un taglio lungo (reset) + N tagli veloci. 'Spento' fa solo il taglio lungo.",
-            style: TextStyle(color: Colors.white38, fontSize: 12, height: 1.5)),
+            style: TextStyle(color: AppColors.muted, fontSize: 12, height: 1.5)),
         ),
       ]);
     },
@@ -696,7 +693,7 @@ class ControlTab extends StatelessWidget {
       icon: const Icon(Icons.restart_alt, size: 18),
       label: const Text("Reset stato — allinea alla realtà"),
       style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.white54, side: const BorderSide(color: Colors.white24),
+        foregroundColor: AppColors.muted, side: const BorderSide(color: AppColors.outline),
         minimumSize: const Size(double.infinity, 46),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
     ),
@@ -707,17 +704,17 @@ class ControlTab extends StatelessWidget {
   // non assumerla — altrimenti resta sfasato rispetto al cover vero.
   Future<void> _askAndReset(BuildContext context) async {
     final isOpen = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      backgroundColor: const Color(0xFF1A1A2E),
-      title: const Text("Stato reale del cover", style: TextStyle(color: Colors.white)),
+      backgroundColor: AppColors.surface,
+      title: const Text("Stato reale del cover", style: TextStyle(color: AppColors.ink)),
       content: const Text(
         "L'ESP32 non può vedere il cover: dimmi tu com'è messo ORA fisicamente, "
         "così l'app e il firmware si allineano alla realtà (la luce verrà considerata spenta).",
-        style: TextStyle(color: Colors.white54)),
+        style: TextStyle(color: AppColors.muted)),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, false),
-          child: const Text("È chiuso", style: TextStyle(color: Colors.white70))),
+          child: const Text("È chiuso", style: TextStyle(color: AppColors.muted))),
         TextButton(onPressed: () => Navigator.pop(context, true),
-          child: const Text("È aperto", style: TextStyle(color: Color(0xFF7B68EE)))),
+          child: const Text("È aperto", style: TextStyle(color: AppColors.accent))),
       ],
     ));
     if (isOpen != null) await ble.resetState(coverIsOpen: isOpen);
@@ -726,18 +723,18 @@ class ControlTab extends StatelessWidget {
   Widget _connectSection() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     const SizedBox(height: 20),
     const Center(child: Text("Connetti il WandererCover via Bluetooth",
-      style: TextStyle(color: Colors.white54, fontSize: 15))),
+      style: TextStyle(color: AppColors.muted, fontSize: 15))),
     const SizedBox(height: 24),
     AnimatedBuilder(animation: ble.autoReconnecting, builder: (_, __) {
       final auto = ble.autoReconnecting.value;
       return SizedBox(width: double.infinity, height: 52, child: ElevatedButton.icon(
         onPressed: auto ? null : ble.manualScan,
         icon: auto ? const SizedBox(width: 18, height: 18,
-          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentInk))
           : const Icon(Icons.bluetooth_searching, size: 20),
         label: Text(auto ? "Ricerca in corso..." : "Cerca WandererCover"),
-        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7B68EE),
-          foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)))));
+        style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent,
+          foregroundColor: AppColors.accentInk, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)))));
     }),
   ]);
 }
@@ -884,10 +881,10 @@ class _TimerTabState extends State<TimerTab> {
     child: SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text("🌙 Sessione Flat", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+        const Text("🌙 Sessione Flat", style: TextStyle(color: AppColors.ink, fontSize: 20, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
         const Text("A fine sessione: chiude il cover e attiva la config. Opzionale: riapre dopo un ritardo.",
-          style: TextStyle(color: Colors.white38, fontSize: 13)),
+          style: TextStyle(color: AppColors.muted, fontSize: 13)),
         const SizedBox(height: 24),
         if (!_running) ...[
           _phase1Section(),
@@ -907,8 +904,8 @@ class _TimerTabState extends State<TimerTab> {
         if (_statusMsg.isNotEmpty) ...[
           const SizedBox(height: 20),
           Container(padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(12)),
-            child: Text(_statusMsg, style: const TextStyle(color: Colors.white70, fontSize: 14))),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
+            child: Text(_statusMsg, style: const TextStyle(color: AppColors.muted, fontSize: 14))),
         ],
       ]),
     ),
@@ -916,10 +913,10 @@ class _TimerTabState extends State<TimerTab> {
 
   // ── Fase 1: quando ──────────────────────────────────────────────────────────
   Widget _phase1Section() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    const Text("① FINE SESSIONE (chiudi + config)", style: TextStyle(color: Colors.white38, fontSize: 11, letterSpacing: 1.2)),
+    const Text("① FINE SESSIONE (chiudi + config)", style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 1.2)),
     const SizedBox(height: 12),
     Container(
-      decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
       child: Row(children: [
         Expanded(child: _modeBtn("duration", "⏳ Durata")),
         Expanded(child: _modeBtn("absolute", "🕐 Orario")),
@@ -937,18 +934,18 @@ class _TimerTabState extends State<TimerTab> {
         onTap: () async {
           final t = await showTimePicker(context: context, initialTime: _p1Time,
             builder: (ctx, child) => Theme(data: ThemeData.dark().copyWith(
-              colorScheme: const ColorScheme.dark(primary: Color(0xFF7B68EE))), child: child!));
+              colorScheme: const ColorScheme.dark(primary: AppColors.accent)), child: child!));
           if (t != null) setState(() => _p1Time = t);
         },
         child: Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFF7B68EE).withValues(alpha: 0.3))),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.accent.withValues(alpha: 0.3))),
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.access_time, color: Color(0xFF7B68EE), size: 28),
+            const Icon(Icons.access_time, color: AppColors.accent, size: 28),
             const SizedBox(width: 12),
             Text("${_p1Time.hour.toString().padLeft(2,'0')}:${_p1Time.minute.toString().padLeft(2,'0')}",
-              style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
+              style: const TextStyle(color: AppColors.ink, fontSize: 36, fontWeight: FontWeight.bold)),
           ]),
         ),
       ),
@@ -958,16 +955,16 @@ class _TimerTabState extends State<TimerTab> {
     onTap: () => setState(() => _mode = mode),
     child: AnimatedContainer(duration: const Duration(milliseconds: 200),
       margin: const EdgeInsets.all(4), padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(color: _mode == mode ? const Color(0xFF7B68EE) : Colors.transparent,
+      decoration: BoxDecoration(color: _mode == mode ? AppColors.chip : Colors.transparent,
         borderRadius: BorderRadius.circular(10)),
       child: Center(child: Text(label, style: TextStyle(
-        color: _mode == mode ? Colors.white : Colors.white38,
+        color: _mode == mode ? AppColors.chipInk : AppColors.muted,
         fontWeight: _mode == mode ? FontWeight.w600 : FontWeight.normal, fontSize: 14)))),
   );
 
   // ── Config da attivare ──────────────────────────────────────────────────────
   Widget _configPicker() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    const Text("② CONFIG DA ATTIVARE", style: TextStyle(color: Colors.white38, fontSize: 11, letterSpacing: 1.2)),
+    const Text("② CONFIG DA ATTIVARE", style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 1.2)),
     const SizedBox(height: 12),
     Row(children: kConfigs.where((c) => c.index > 0).map((c) {
       final sel = c.index == _sessionConfig;
@@ -975,13 +972,13 @@ class _TimerTabState extends State<TimerTab> {
         child: GestureDetector(onTap: () => setState(() => _sessionConfig = c.index),
           child: AnimatedContainer(duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: BoxDecoration(color: sel ? c.color.withValues(alpha: 0.15) : const Color(0xFF1A1A2E),
-              borderRadius: BorderRadius.circular(12), border: Border.all(color: sel ? c.color : Colors.white12, width: sel ? 2 : 1)),
+            decoration: BoxDecoration(color: sel ? c.color.withValues(alpha: 0.15) : AppColors.surface,
+              borderRadius: BorderRadius.circular(12), border: Border.all(color: sel ? c.color : AppColors.line, width: sel ? 2 : 1)),
             child: Column(children: [
               Icon(Icons.wb_sunny, color: c.color, size: 24),
               const SizedBox(height: 6),
-              Text(c.brightness, style: TextStyle(color: sel ? c.color : Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-              Text("Heater ${c.heater}", style: const TextStyle(color: Colors.white38, fontSize: 10)),
+              Text(c.brightness, style: TextStyle(color: sel ? c.color : AppColors.ink, fontSize: 16, fontWeight: FontWeight.bold)),
+              Text("Heater ${c.heater}", style: const TextStyle(color: AppColors.muted, fontSize: 10)),
             ])))));
     }).toList()),
   ]);
@@ -989,18 +986,18 @@ class _TimerTabState extends State<TimerTab> {
   // ── Opzione: chiudi cover prima della config ───────────────────────────────
   Widget _closeFirstToggle() => Container(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-    decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(12)),
+    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
     child: Row(children: [
-      const Icon(Icons.flip_to_back, color: Color(0xFF4CAF50), size: 20),
+      const Icon(Icons.flip_to_back, color: AppColors.q5, size: 20),
       const SizedBox(width: 12),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text("Chiudi il cover prima di attivare la config",
-          style: TextStyle(color: Colors.white70, fontSize: 14)),
+          style: TextStyle(color: AppColors.muted, fontSize: 14)),
         const SizedBox(height: 2),
         Text(ble.coverOpen.value ? "Cover ora aperto → consigliato ON" : "Cover ora chiuso → non necessario",
-          style: const TextStyle(color: Colors.white38, fontSize: 11)),
+          style: const TextStyle(color: AppColors.muted, fontSize: 11)),
       ])),
-      Switch(value: _closeFirst, activeThumbColor: const Color(0xFF4CAF50),
+      Switch(value: _closeFirst, activeThumbColor: AppColors.q5,
         onChanged: (v) => setState(() => _closeFirst = v)),
     ]),
   );
@@ -1009,19 +1006,19 @@ class _TimerTabState extends State<TimerTab> {
   Widget _phase2Section() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
       child: Row(children: [
-        const Icon(Icons.flip_to_front, color: Color(0xFF7B68EE), size: 20),
+        const Icon(Icons.flip_to_front, color: AppColors.accent, size: 20),
         const SizedBox(width: 12),
         const Expanded(child: Text("③ Riapri il cover dopo un ritardo",
-          style: TextStyle(color: Colors.white70, fontSize: 14))),
-        Switch(value: _phase2Enabled, activeThumbColor: const Color(0xFF7B68EE),
+          style: TextStyle(color: AppColors.muted, fontSize: 14))),
+        Switch(value: _phase2Enabled, activeThumbColor: AppColors.accent,
           onChanged: (v) => setState(() => _phase2Enabled = v)),
       ]),
     ),
     if (_phase2Enabled) ...[
       const SizedBox(height: 16),
-      const Text("RITARDO PRIMA DI RIAPRIRE", style: TextStyle(color: Colors.white38, fontSize: 11, letterSpacing: 1.2)),
+      const Text("RITARDO PRIMA DI RIAPRIRE", style: TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 1.2)),
       const SizedBox(height: 12),
       Row(children: [
         Expanded(child: _spinner("Ore", _p2Hours, 0, 23, (v) => setState(() => _p2Hours = v))),
@@ -1035,25 +1032,25 @@ class _TimerTabState extends State<TimerTab> {
     child: ElevatedButton.icon(onPressed: _start,
       icon: const Icon(Icons.play_arrow_rounded),
       label: const Text("Avvia sessione"),
-      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7B68EE),
-        foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent,
+        foregroundColor: AppColors.accentInk, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
   );
 
   Widget _runningDisplay() => Container(
     width: double.infinity, padding: const EdgeInsets.all(28),
-    decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: const Color(0xFF7B68EE).withValues(alpha: 0.3))),
+    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: AppColors.accent.withValues(alpha: 0.3))),
     child: Column(children: [
       Text(_stage == 0 ? "CHIUSURA + CONFIG TRA" : "RIAPERTURA COVER TRA",
-        style: const TextStyle(color: Colors.white38, fontSize: 11, letterSpacing: 1.5)),
+        style: const TextStyle(color: AppColors.muted, fontSize: 11, letterSpacing: 1.5)),
       const SizedBox(height: 12),
-      Text(_fmt(_left), style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.bold)),
+      Text(_fmt(_left), style: const TextStyle(color: AppColors.ink, fontSize: 48, fontWeight: FontWeight.bold)),
       const SizedBox(height: 8),
       Text(_stage == 0
           ? "Poi: chiude cover + ${kConfigs[_sessionConfig].name}"
           : "Config ${kConfigs[_sessionConfig].name} attiva",
-        style: const TextStyle(color: Colors.white38, fontSize: 14)),
+        style: const TextStyle(color: AppColors.muted, fontSize: 14)),
     ]),
   );
 
@@ -1061,18 +1058,18 @@ class _TimerTabState extends State<TimerTab> {
     child: OutlinedButton.icon(onPressed: _cancel,
       icon: const Icon(Icons.stop_circle_outlined),
       label: const Text("Annulla sessione"),
-      style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFFF6B6B),
-        side: const BorderSide(color: Color(0xFFFF6B6B), width: 1.5),
+      style: OutlinedButton.styleFrom(foregroundColor: AppColors.q2,
+        side: const BorderSide(color: AppColors.q2, width: 1.5),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)))),
   );
 
   // Scroll picker a ruota (stile iOS) per ore/minuti
   Widget _wheelPicker(String label, int val, int max, ValueChanged<int> cb) => Container(
     height: 140,
-    decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(12)),
+    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
     child: Column(children: [
       Padding(padding: const EdgeInsets.only(top: 8),
-        child: Text(label, style: const TextStyle(color: Colors.white38, fontSize: 12))),
+        child: Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 12))),
       Expanded(child: CupertinoPicker(
         scrollController: FixedExtentScrollController(initialItem: val),
         itemExtent: 34,
@@ -1081,12 +1078,12 @@ class _TimerTabState extends State<TimerTab> {
         useMagnifier: true,
         selectionOverlay: Container(
           decoration: BoxDecoration(border: Border.symmetric(
-            horizontal: BorderSide(color: const Color(0xFF7B68EE).withValues(alpha: 0.4), width: 1))),
+            horizontal: BorderSide(color: AppColors.accent.withValues(alpha: 0.4), width: 1))),
         ),
         onSelectedItemChanged: cb,
         children: List.generate(max + 1, (i) => Center(
           child: Text(i.toString().padLeft(2, '0'),
-            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600)))),
+            style: const TextStyle(color: AppColors.ink, fontSize: 22, fontWeight: FontWeight.w600)))),
       )),
     ]),
   );
