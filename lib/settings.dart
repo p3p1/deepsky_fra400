@@ -20,7 +20,7 @@ class AppSettings {
 
   SiteMode mode = SiteMode.home;
 
-  // Casa: posizione fissa con i limiti del balcone.
+  // Sito urbano: posizione fissa con i limiti di cielo visibile.
   String homeName = kDefaultHomeName;
   double homeLat = kDefaultHomeLat;
   double homeLon = kDefaultHomeLon;
@@ -30,7 +30,7 @@ class AppSettings {
   double homeAzTo = 360; // ...a nord, passando per ovest
   bool homeUrban = true;
 
-  // Trasferta: posizione presa dal GPS, cielo libero.
+  // Sito rurale: posizione presa dal GPS, cielo libero.
   double? travelLat;
   double? travelLon;
   DateTime? travelFix;
@@ -60,7 +60,7 @@ class AppSettings {
   double get lat => isHome || !hasTravelFix ? homeLat : travelLat!;
   double get lon => isHome || !hasTravelFix ? homeLon : travelLon!;
   bool get urban => isHome ? homeUrban : travelUrban;
-  String get siteName => isHome ? homeName : 'Trasferta';
+  String get siteName => isHome ? '$homeName (urbano)' : 'sito rurale (GPS)';
 
   SkyWindow get window => isHome
       ? SkyWindow(altMin: homeAltMin, altMax: homeAltMax, azFrom: homeAzFrom, azTo: homeAzTo)

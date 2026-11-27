@@ -32,8 +32,8 @@ class SiteSwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     return SegmentedButton<SiteMode>(
       segments: const <ButtonSegment<SiteMode>>[
-        ButtonSegment<SiteMode>(value: SiteMode.home, label: Text('Casa')),
-        ButtonSegment<SiteMode>(value: SiteMode.travel, label: Text('Trasferta')),
+        ButtonSegment<SiteMode>(value: SiteMode.home, label: Text('Urbano')),
+        ButtonSegment<SiteMode>(value: SiteMode.travel, label: Text('Rurale')),
       ],
       selected: <SiteMode>{state.settings.mode},
       showSelectedIcon: false,

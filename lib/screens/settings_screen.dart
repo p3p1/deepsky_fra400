@@ -47,12 +47,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     setState(() => _homeError = null);
     await widget.state.changeSettings((AppSettings s) {
-      s.homeName = _name.text.trim().isEmpty ? 'Casa' : _name.text.trim();
+      s.homeName = _name.text.trim().isEmpty ? 'Sito urbano' : _name.text.trim();
       s.homeLat = lat;
       s.homeLon = lon;
     });
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Posizione di casa salvata')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Posizione del sito urbano salvata')));
     }
   }
 
@@ -115,7 +115,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: const TextStyle(color: AppColors.muted, fontSize: 13),
             ),
 
-            _title('Casa'),
+            _title('Sito urbano'),
             TextField(controller: _name, decoration: const InputDecoration(labelText: 'Nome', isDense: true)),
             const SizedBox(height: 10),
             Row(
@@ -183,12 +183,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: (bool v) => st.changeSettings((AppSettings a) => a.homeUrban = v),
             ),
 
-            _title('Trasferta'),
+            _title('Sito rurale'),
             Text(
               s.hasTravelFix
                   ? 'Ultima posizione GPS: ${fmt(s.travelLat!, 4)}° N, ${fmt(s.travelLon!, 4)}° E'
                       '${s.travelFix == null ? '' : ', letta il ${fmtDate(s.travelFix!)} alle ${fmtTime(s.travelFix!)}'}.'
-                  : 'Nessuna posizione GPS ancora letta: finché manca, la trasferta usa le coordinate di casa.',
+                  : 'Nessuna posizione GPS ancora letta: finché manca, il sito rurale usa le coordinate del sito urbano.',
               style: const TextStyle(fontSize: 13.5),
             ),
             const SizedBox(height: 8),
@@ -264,7 +264,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _title('Uso senza rete'),
             const Text(
               'Senza internet funzionano: catalogo, punteggi, «Stanotte», traiettorie e cupola, vista AR, '
-              'posizione GPS in trasferta, dettagli degli oggetti, liste personali e, una volta scaricate, '
+              'posizione GPS nel sito rurale, dettagli degli oggetti, liste personali e, una volta scaricate, '
               'immagini di repertorio e comete (con gli ultimi elementi orbitali salvati). '
               'La rete serve solo per scaricare immagini, comete aggiornate e nuove versioni dell\'app.',
               style: TextStyle(color: AppColors.muted, fontSize: 13),

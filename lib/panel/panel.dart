@@ -41,8 +41,8 @@ const kConfigs = [
 /// Tema originale dell'app del pannello, applicato solo alla sua sezione.
 ThemeData panelTheme() => ThemeData(
       colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF7B68EE), secondary: Color(0xFFFFD700), surface: Color(0xFF0D0D1A)),
-      scaffoldBackgroundColor: const Color(0xFF0D0D1A),
+          primary: Color(0xFF7B68EE), secondary: Color(0xFFFFD700), surface: Color(0xFF000000)),
+      scaffoldBackgroundColor: const Color(0xFF000000),
       useMaterial3: true,
     );
 

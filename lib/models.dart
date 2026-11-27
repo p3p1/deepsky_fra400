@@ -245,9 +245,9 @@ class DsObject {
       case 'MIX':
         return <String>['S200 per la parte a emissione e UV/IR-cut per la parte a riflessione, in due sessioni distinte.'];
       case 'RN':
-        return <String>['UV/IR-cut sotto un cielo buio. L\'S200 non va bene: la luce riflessa è continua e il filtro la taglia.'];
+        return <String>['UV/IR-cut sotto un cielo rurale. L\'S200 non va bene: la luce riflessa è continua e il filtro la taglia.'];
       case 'DN':
-        return <String>['UV/IR-cut sotto un cielo buio: la nebulosa oscura si vede per contrasto sul fondo di stelle.'];
+        return <String>['UV/IR-cut sotto un cielo rurale: la nebulosa oscura si vede per contrasto sul fondo di stelle.'];
       case 'NEB':
         return <String>['Il catalogo non dice se è a emissione o a riflessione: prova prima l\'S200, poi la banda larga con UV/IR-cut.'];
       case 'GAL':
@@ -265,7 +265,7 @@ class DsObject {
   /// Filtri commerciali noti adatti a questo tipo di oggetto, con il loro ruolo.
   /// Il primo elemento indica se è il filtro che hai già.
   List<FilterSuggestion> get filterSuggestions {
-    const FilterSuggestion s200 = FilterSuggestion('SVBONY S200', 'Dual-band Hα + OIII', 'Quello che hai già: va bene dal balcone e con la Luna.', owned: true);
+    const FilterSuggestion s200 = FilterSuggestion('SVBONY S200', 'Dual-band Hα + OIII', 'Quello che hai già: va bene da un sito urbano e con la Luna.', owned: true);
     const FilterSuggestion lExtreme = FilterSuggestion('Optolong L-eXtreme', 'Dual-band Hα + OIII, 7 nm',
         'Il riferimento per le camere a colori sotto cielo urbano: fondo cielo più scuro dell\'S200.');
     const FilterSuggestion alpT = FilterSuggestion('Antlia ALP-T', 'Dual-band Hα + OIII, 5 nm',
@@ -275,7 +275,7 @@ class DsObject {
     const FilterSuggestion lEnhance = FilterSuggestion('Optolong L-eNhance', 'Tri-band Hα, Hβ, OIII',
         'Bande più larghe: colori più naturali, adatto a cieli poco o mediamente inquinati.');
     const FilterSuggestion uvir = FilterSuggestion('Baader UV/IR-Cut', 'Banda larga',
-        'Lascia passare tutto il visibile: colori naturali sotto un cielo buio.');
+        'Lascia passare tutto il visibile: colori naturali sotto un cielo rurale.');
     const FilterSuggestion lPro = FilterSuggestion('Optolong L-Pro', 'Antinquinamento a banda larga',
         'Taglia le righe dell\'illuminazione stradale conservando il colore delle stelle: utile in città.');
     const FilterSuggestion lpsD1 = FilterSuggestion('IDAS LPS-D1', 'Antinquinamento a banda larga',
@@ -317,7 +317,7 @@ class DsObject {
     final bool reducer = cfg == 'R' || cfg == 'NL' || cfg == 'M';
     final String sub = s200
         ? (reducer ? '120 s con il riduttore, 180 s a 400 mm' : '180 s (120 s se usi il riduttore)')
-        : (_isCluster ? '30–60 s' : '60 s sotto un cielo buio, 30 s dalla città');
+        : (_isCluster ? '30–60 s' : '60 s da un sito rurale, 30 s da un sito urbano');
     String integ;
     if (_isCluster) {
       integ = '1–2 ore';

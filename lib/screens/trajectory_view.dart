@@ -139,7 +139,7 @@ class _TrajectoryViewState extends State<TrajectoryView> {
               ),
               Text(
                 '${settings.siteName} · ${fmt(lat, 4)}° N, ${fmt(lon, 4)}° E'
-                '${!settings.isHome && !settings.hasTravelFix ? ' (GPS non ancora letto: uso le coordinate di casa)' : ''}',
+                '${!settings.isHome && !settings.hasTravelFix ? ' (GPS non ancora letto: uso le coordinate del sito urbano)' : ''}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: AppColors.muted, fontSize: 12),
               ),
