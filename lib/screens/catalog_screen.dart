@@ -7,6 +7,7 @@ import '../lists.dart';
 import '../models.dart';
 import '../settings.dart';
 import '../theme.dart';
+import '../widgets/app_icons.dart';
 import 'object_detail.dart';
 
 class CatalogFilters {
@@ -111,6 +112,7 @@ Future<void> showFiltersSheet(
                   children: <Widget>[
                     for (final TypeInfo t in kTypes)
                       FilterChip(
+                        avatar: TypeIcon(t.code, size: 18),
                         label: Text(t.plural),
                         selected: f.types.contains(t.code),
                         onSelected: (bool on) => update(() => on ? f.types.add(t.code) : f.types.remove(t.code)),
@@ -182,8 +184,8 @@ class SiteSwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     return SegmentedButton<SiteMode>(
       segments: const <ButtonSegment<SiteMode>>[
-        ButtonSegment<SiteMode>(value: SiteMode.home, label: Text('Urbano')),
-        ButtonSegment<SiteMode>(value: SiteMode.travel, label: Text('Rurale')),
+        ButtonSegment<SiteMode>(value: SiteMode.home, icon: AppIcon('urban', size: 18), label: Text('Urbano')),
+        ButtonSegment<SiteMode>(value: SiteMode.travel, icon: AppIcon('rural', size: 18), label: Text('Rurale')),
       ],
       selected: <SiteMode>{state.settings.mode},
       showSelectedIcon: false,
@@ -241,11 +243,19 @@ class ObjectRow extends StatelessWidget {
                           ),
                         ],
                       ),
-                      Text(
-                        '${o.info.singular} · ${o.sizeText} · ${o.filterShort} · ${o.cfgShort}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Padding(padding: const EdgeInsets.only(top: 1, right: 5), child: TypeIcon(o.type, size: 15)),
+                          Expanded(
+                            child: Text(
+                              '${o.info.singular} · ${o.sizeText} · ${o.filterShort} · ${o.cfgShort}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

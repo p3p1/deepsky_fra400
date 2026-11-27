@@ -41,8 +41,21 @@ if 'android.intent.action.VIEW' not in text:
         text = text.replace('<queries>', '<queries>\n' + view_https, 1)
     else:
         text = text.replace('</manifest>', '    <queries>\n' + view_https + '    </queries>\n</manifest>', 1)
+# Icona dell'app: icona adattiva (Android 8+) e PNG per i telefoni più vecchi.
+if 'android:roundIcon' not in text:
+    text = text.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@mipmap/ic_launcher"\n        android:roundIcon="@mipmap/ic_launcher_round"', 1)
 path.write_text(text, encoding='utf-8')
 print('AndroidManifest.xml aggiornato')
+
+import shutil
+res_src = pathlib.Path(__file__).resolve().parent / 'android_res'
+res_dst = pathlib.Path('android/app/src/main/res')
+for f in res_src.rglob('*'):
+    if f.is_file():
+        out = res_dst / f.relative_to(res_src)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(f, out)
+print('Icona dell\'app copiata in', res_dst)
 
 # permission_handler_android richiede di compilare contro Android SDK 37.
 # Cambia solo l'SDK di compilazione: targetSdk e minSdk restano quelli di Flutter.

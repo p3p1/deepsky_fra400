@@ -11,6 +11,7 @@ import '../details.dart';
 import '../lists.dart';
 import '../models.dart';
 import '../theme.dart';
+import '../widgets/app_icons.dart';
 import '../widgets/framing_view.dart';
 import '../widgets/reference_image.dart';
 import 'trajectory_view.dart';
@@ -113,7 +114,13 @@ class _ObjectDetailState extends State<ObjectDetail> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         Text(o.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-                        Text('${o.info.singular} · ${o.constellation}', style: const TextStyle(color: AppColors.muted)),
+                        Row(
+                          children: <Widget>[
+                            TypeIcon(o.type, size: 16),
+                            const SizedBox(width: 6),
+                            Flexible(child: Text('${o.info.singular} · ${o.constellation}', style: const TextStyle(color: AppColors.muted))),
+                          ],
+                        ),
                         Text('AR ${fmtRa(o.ra)} · Dec ${fmtDec(o.dec)} (J2000)', style: kMono.copyWith(fontSize: 12.5, color: AppColors.muted)),
                       ],
                     ),
@@ -150,9 +157,17 @@ class _ObjectDetailState extends State<ObjectDetail> {
     );
   }
 
-  Widget _section(String title) => Padding(
+  Widget _section(String title, {String? icon}) => Padding(
         padding: const EdgeInsets.only(top: 16, bottom: 6),
-        child: Text(title.toUpperCase(), style: const TextStyle(color: AppColors.muted, fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: 0.6)),
+        child: Row(
+          children: <Widget>[
+            if (icon != null) ...<Widget>[AppIcon(icon, size: 16, color: AppColors.accent), const SizedBox(width: 6)],
+            Flexible(
+              child: Text(title.toUpperCase(),
+                  style: const TextStyle(color: AppColors.muted, fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: 0.6)),
+            ),
+          ],
+        ),
       );
 
   Widget _facts(List<List<String>> rows) {
@@ -186,7 +201,7 @@ class _ObjectDetailState extends State<ObjectDetail> {
         _AboutObject(object: o, details: st.details.of(o.id)),
         _section('Approfondisci'),
         _SourceLinks(object: o, details: st.details.of(o.id)),
-        _section('Inquadratura in scala'),
+        _section('Inquadratura in scala', icon: 'framing'),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(10),
@@ -222,7 +237,7 @@ class _ObjectDetailState extends State<ObjectDetail> {
               ],
             ),
           ),
-        _section('Filtro'),
+        _section('Filtro', icon: 'filter'),
         for (final String f in o.filterLong) Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(f, style: const TextStyle(fontSize: 13.5))),
         const SizedBox(height: 6),
         Text('Filtri più usati per questo tipo di oggetto', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),

@@ -13,6 +13,7 @@ import 'screens/object_detail.dart';
 import 'screens/settings_screen.dart';
 import 'screens/tonight_screen.dart';
 import 'theme.dart';
+import 'widgets/app_icons.dart';
 import 'updater.dart';
 
 void main() {
@@ -48,9 +49,29 @@ class _DeepSkyAppState extends State<DeepSkyApp> {
       title: 'Deep Sky FRA400',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
+      // Testi più grandi: una taglia in più con il telefono chiuso,
+      // due con lo schermo grande aperto (Galaxy Z Fold).
+      builder: (BuildContext context, Widget? child) {
+        final MediaQueryData mq = MediaQuery.of(context);
+        final double factor = textBoost(mq.size);
+        return MediaQuery(
+          data: mq.copyWith(textScaler: TextScaler.linear(mq.textScaler.scale(14) / 14 * factor)),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: RootShell(state: _state),
     );
   }
+}
+
+/// Ingrandimento dei testi: schermo aperto (quasi quadrato o largo almeno
+/// 600 dp) due taglie, telefono chiuso una taglia. Una "taglia" della scala
+/// tipografica Material vale circa +2 sp sul corpo 14 sp (≈ +14%).
+double textBoost(Size size) {
+  final double shortSide = size.shortestSide;
+  final double aspect = size.shortestSide / size.longestSide;
+  final bool open = shortSide >= 600 || aspect > 0.7;
+  return open ? 1.28 : 1.14;
 }
 
 /// Le due sezioni dell'app: Deep Sky e Flat panel. Restano entrambe in vita
@@ -69,7 +90,7 @@ class _RootShellState extends State<RootShell> {
   int _section = 0;
 
   static const List<String> _labels = <String>['Deep Sky', 'Flat panel'];
-  static const List<IconData> _icons = <IconData>[Icons.auto_awesome, Icons.light_mode_outlined];
+  static const List<String> _icons = <String>['deepsky', 'flatpanel'];
 
   @override
   Widget build(BuildContext context) {
@@ -97,7 +118,7 @@ class _RootShellState extends State<RootShell> {
                 onDestinationSelected: (int i) => setState(() => _section = i),
                 labelType: NavigationRailLabelType.all,
                 destinations: <NavigationRailDestination>[
-                  for (int i = 0; i < _labels.length; i++) NavigationRailDestination(icon: Icon(_icons[i]), label: Text(_labels[i])),
+                  for (int i = 0; i < _labels.length; i++) NavigationRailDestination(icon: AppIcon(_icons[i]), label: Text(_labels[i])),
                 ],
               ),
               const VerticalDivider(width: 1),
@@ -113,7 +134,7 @@ class _RootShellState extends State<RootShell> {
         selectedIndex: _section,
         onDestinationSelected: (int i) => setState(() => _section = i),
         destinations: <NavigationDestination>[
-          for (int i = 0; i < _labels.length; i++) NavigationDestination(icon: Icon(_icons[i]), label: _labels[i]),
+          for (int i = 0; i < _labels.length; i++) NavigationDestination(icon: AppIcon(_icons[i]), label: _labels[i]),
         ],
       ),
     );
@@ -214,7 +235,7 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
   bool _selectedOnTrack = false;
 
   static const List<String> _labels = <String>['Catalogo', 'Stanotte', 'Liste', 'Comete', 'Impostazioni'];
-  static const List<IconData> _icons = <IconData>[Icons.list_alt, Icons.nights_stay, Icons.bookmarks, Icons.wb_twilight, Icons.settings];
+  static const List<String> _icons = <String>['catalog', 'tonight', 'lists', 'comets', 'settings'];
 
   void _open(DsObject o, {DateTime? day, bool track = false}) {
     final bool twoPane = MediaQuery.sizeOf(context).width >= kTwoPaneWidth;
@@ -300,7 +321,7 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
                   isScrollable: true,
                   tabAlignment: TabAlignment.center,
                   tabs: <Widget>[
-                    for (int i = 0; i < _labels.length; i++) Tab(icon: Icon(_icons[i]), text: _labels[i]),
+                    for (int i = 0; i < _labels.length; i++) Tab(icon: AppIcon(_icons[i]), text: _labels[i]),
                   ],
                 ),
                 Expanded(child: _body(twoPane)),

@@ -9,6 +9,7 @@ import '../app_state.dart';
 import '../astro.dart';
 import '../models.dart';
 import '../theme.dart';
+import '../widgets/app_icons.dart';
 import '../widgets/clock_chip.dart';
 import '../widgets/sky_charts.dart';
 import 'ar_screen.dart';
@@ -154,8 +155,8 @@ class _TrajectoryViewState extends State<TrajectoryView> {
                 Center(
                   child: SegmentedButton<bool>(
                     segments: const <ButtonSegment<bool>>[
-                      ButtonSegment<bool>(value: false, label: Text('Grafico')),
-                      ButtonSegment<bool>(value: true, label: Text('Cupola')),
+                      ButtonSegment<bool>(value: false, icon: AppIcon('chart', size: 18), label: Text('Grafico')),
+                      ButtonSegment<bool>(value: true, icon: AppIcon('dome', size: 18), label: Text('Cupola')),
                     ],
                     selected: <bool>{_dome},
                     showSelectedIcon: false,
@@ -182,7 +183,7 @@ class _TrajectoryViewState extends State<TrajectoryView> {
                   onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
                     builder: (BuildContext context) => ArScreen(state: widget.state, target: widget.target, day: _day),
                   )),
-                  icon: const Icon(Icons.view_in_ar),
+                  icon: const AppIcon('ar', size: 20),
                   label: const Text('Vista AR nel cielo'),
                 ),
               ),

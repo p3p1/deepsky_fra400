@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import '../app_state.dart';
 import '../models.dart';
 import '../theme.dart';
+import 'app_icons.dart';
 
 /// Chiede data e ora e imposta l'orologio simulato.
 Future<void> pickSimulatedTime(BuildContext context, AppState state) async {
@@ -45,7 +46,7 @@ class ClockChip extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: <Widget>[
             ActionChip(
-              avatar: Icon(sim ? Icons.history_toggle_off : Icons.schedule, size: 18, color: sim ? AppColors.amber : AppColors.muted),
+              avatar: AppIcon('clock', size: 18, color: sim ? AppColors.amber : AppColors.muted),
               label: Text(compact && !sim ? 'Simula orario' : (sim ? label : 'Ora reale · simula orario'),
                   style: TextStyle(color: sim ? AppColors.amber : AppColors.ink, fontSize: 12.5)),
               tooltip: 'Scegli data e ora da simulare',
